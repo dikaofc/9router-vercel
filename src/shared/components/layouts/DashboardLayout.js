@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useNotificationStore } from "@/store/notificationStore";
 import Sidebar from "../Sidebar";
+import Header from "../Header";
 
 function getToastStyle(type) {
   if (type === "success") {
@@ -39,7 +40,7 @@ export default function DashboardLayout({ children }) {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg">
       {/* Toast Notifications */}
-      <div className="fixed top-16 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2">
+      <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2">
         {notifications.map((n) => {
           const style = getToastStyle(n.type);
           return (
@@ -69,16 +70,17 @@ export default function DashboardLayout({ children }) {
         })}
       </div>
 
-      {/* Floating Tab Bar */}
-      <Sidebar onClose={() => setSidebarOpen(false)} />
+      {/* iOS Sheet Sidebar */}
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content */}
       <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate">
         {/* Faint grid background */}
         <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
+        <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
         <div
           data-scroll-container
-          className={`flex-1 overflow-y-auto custom-scrollbar pt-16 ${pathname === "/dashboard/basic-chat" ? "" : "px-4 lg:px-8 pb-6"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}
+          className={`flex-1 overflow-y-auto custom-scrollbar ${pathname === "/dashboard/basic-chat" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}
         >
           <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}>{children}</div>
         </div>
