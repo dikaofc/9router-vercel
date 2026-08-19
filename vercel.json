@@ -14,9 +14,7 @@
       "memory": 1024
     }
   },
-  "env": {
-    "NEXT_PUBLIC_BASE_URL": "@vercel_url"
-  },
+  "env": {},
   "headers": [
     {
       "source": "/v1/(.*)",
