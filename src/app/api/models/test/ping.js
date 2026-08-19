@@ -50,7 +50,18 @@ async function getInternalHeaders() {
   return headers;
 }
 
-export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`) {
+function getDefaultBaseUrl() {
+  // On Vercel, use the deployment URL instead of localhost
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.VERCEL) {
+    // Fallback: derive from headers if available
+    const url = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    if (url) return url.startsWith("http") ? url : `https://${url}`;
+  }
+  return `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`;
+}
+
+export async function pingModelByKind(model, kind, baseUrl = getDefaultBaseUrl()) {
   const headers = await getInternalHeaders();
   const start = Date.now();
 
