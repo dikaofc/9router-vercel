@@ -85,19 +85,16 @@ export default function CreditsPage() {
           </div>
           <div>
             <h3 className="font-semibold text-[15px]">Vercel Deployment Patch</h3>
-            <p className="text-xs text-text-muted">Free hosting on Vercel · Zero config</p>
+            <p className="text-xs text-text-muted">by <span className="text-primary font-medium">Dika</span> · Free hosting · Zero config</p>
           </div>
         </div>
-        <p className="text-sm text-text-muted mb-1 leading-relaxed">
-          In-memory SQLite, HMAC cookie auth, direct in-process model testing, auto-detect Vercel environment — deploy 9Router to Vercel for free.
-        </p>
-        <p className="text-sm mb-4">
-          by <span className="font-semibold text-primary">Dika</span>
+        <p className="text-sm text-text-muted mb-4 leading-relaxed">
+          Deploy 9Router to Vercel for free — in-memory SQLite, HMAC auth, auto-detect environment. No server needed.
         </p>
         <div className="flex flex-wrap gap-2">
-          <CreditLink href="https://t.me/dikaacode" color="telegram" label="Telegram"
+          <CreditLink href="https://t.me/dikaacode" color="telegram" label="@dikaacode"
             icon={<TelegramIcon />} />
-          <CreditLink href="https://www.obitoglory.tech" color="website" label="Website"
+          <CreditLink href="https://www.obitoglory.tech" color="website" label="obitoglory.tech"
             icon={<span className="material-symbols-outlined text-[16px]">language</span>} />
           <CreditLink href="https://saweria.co/dikatech" color="donate" label="Donate ☕"
             icon={<span className="material-symbols-outlined text-[16px]">favorite</span>} />
