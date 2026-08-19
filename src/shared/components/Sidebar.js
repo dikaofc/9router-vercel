@@ -343,6 +343,28 @@ export default function Sidebar({ onClose }) {
               </span>
               <span className="text-[13px] font-medium">Settings</span>
             </Link>
+
+            {/* Credits */}
+            <Link
+              href="/dashboard/credits"
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
+                isActive("/dashboard/credits")
+                  ? "bg-primary/10 text-primary"
+                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
+              )}
+            >
+              <span
+                className={cn(
+                  "material-symbols-outlined text-[18px]",
+                  isActive("/dashboard/credits") ? "fill-1" : "group-hover:text-primary transition-colors"
+                )}
+              >
+                favorite
+              </span>
+              <span className="text-[13px] font-medium">Credits</span>
+            </Link>
           </div>
         </nav>
 

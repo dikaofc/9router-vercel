@@ -154,6 +154,15 @@ export default function LoginPage() {
       {/* Faint grid background */}
       <div className="landing-grid absolute inset-0 pointer-events-none" aria-hidden="true" />
       <div className="relative z-10 w-full max-w-md">
+        {/* Vercel Patch Credit */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-2/50 border border-border/50 text-[11px] text-text-muted">
+            <span className="material-symbols-outlined text-[12px] text-primary">deploy</span>
+            Vercel Patch by <a href="https://t.me/dikaacode" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">@dikaacode</a>
+            · <a href="https://www.obitoglory.tech" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">obitoglory.tech</a>
+            · <a href="https://saweria.co/dikatech" target="_blank" rel="noopener noreferrer" className="text-yellow-500 hover:underline">Donate ☕</a>
+          </div>
+        </div>
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">9Router</h1>
           <p className="text-text-muted">
