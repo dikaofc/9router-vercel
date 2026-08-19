@@ -917,7 +917,7 @@ export default function APIPageClient({ machineId }) {
           </div>
         </div>
 
-        )} </>)} {/* end IS_VERCEL tunnel/tailscale hide */}
+        </>)} {/* end IS_VERCEL tunnel/tailscale hide */}
         {/* Pre-enable security gate banner */}
         {isLoginUnsafe && !tunnelEnabled && !tsEnabled && (
           <div className="mt-4">
@@ -1311,7 +1311,7 @@ export default function APIPageClient({ machineId }) {
         </div>
       </Modal>
 
-      )} </>)} {/* end IS_VERCEL modal hide */}
+      </>)} {/* end IS_VERCEL modal hide */}
       {/* Confirm Modal */}
       <ConfirmModal
         isOpen={!!confirmState}
