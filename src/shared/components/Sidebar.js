@@ -8,6 +8,7 @@ import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import ThemeToggle from "./ThemeToggle";
 import { ConfirmModal } from "./Modal";
 import NineRemotePromoModal from "./NineRemotePromoModal";
 
@@ -222,9 +223,27 @@ export default function Sidebar({ onClose }) {
                     <span className="material-symbols-outlined text-[15px]">favorite</span>
                     Credits
                   </Link>
+                  <div className="w-full h-px bg-border my-1" />
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setDropdown(null);
+                      try {
+                        const res = await fetch("/api/auth/logout", { method: "POST" });
+                        if (res.ok) window.location.assign("/login");
+                      } catch {}
+                    }}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10 w-full transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">logout</span>
+                    Logout
+                  </button>
                 </div>
               )}
             </div>
+
+            <div className="w-px h-4 bg-border mx-0.5" />
+            <ThemeToggle />
           </div>
         </div>
       </div>
