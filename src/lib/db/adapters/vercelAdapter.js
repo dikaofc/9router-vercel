@@ -14,7 +14,7 @@ async function loadSql() {
   return SQL;
 }
 
-function seedFromEnv(adapter) {
+export function seedFromEnv(adapter) {
   const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");
   const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;
@@ -82,8 +82,31 @@ function seedFromEnv(adapter) {
   if (apiKeySecret) {
     adapter.run(
       `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
-      [`vercel-key-${Date.now()}`, apiKeySecret, "Vercel API Key", null, 1, now]
+      [`vercel-key-secret-${Date.now()}`, apiKeySecret, "Vercel API Key", null, 1, now]
     );
+  }
+
+  // Support multiple explicit API keys via API_KEYS (comma / newline / whitespace separated).
+  // This is the reliable way to provision keys on Vercel: the in-memory DB is ephemeral and keys
+  // created through the dashboard UI do NOT persist across cold starts or serverless instances,
+  // so a remote /v1 request frequently hits an instance whose memory has no key -> 401.
+  // Pinning keys via API_KEYS re-seeds them on every cold start.
+  const apiKeysEnv = process.env.API_KEYS;
+  if (apiKeysEnv) {
+    const extraKeys = String(apiKeysEnv)
+      .split(/[\s,]+/)
+      .map((k) => k.trim())
+      .filter(Boolean);
+    let idx = 0;
+    for (const k of extraKeys) {
+      adapter.run(
+        `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
+        [`vercel-key-env-${Date.now()}-${idx++}`, k, "Vercel API Key (env)", null, 1, now]
+      );
+    }
+    if (extraKeys.length) {
+      console.log(`[DB/Vercel] Seeded ${extraKeys.length} API key(s) from API_KEYS env var`);
+    }
   }
 
   for (const conn of connections) {
@@ -163,6 +186,5 @@ export async function createVercelAdapter() {
     run, get, all, exec, transaction, close, raw: db,
   };
 
-  adapter._seedFromEnv = () => seedFromEnv(adapter);
   return adapter;
 }

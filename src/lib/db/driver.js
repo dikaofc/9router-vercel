@@ -91,10 +91,12 @@ async function initAdapter() {
   const { runMigrationOnce } = await import("./migrate.js");
   await runMigrationOnce(adapter);
 
-  // Vercel: seed settings/connections from env vars AFTER schema is ready
-  if (adapter._seedFromEnv) {
-    adapter._seedFromEnv();
-    delete adapter._seedFromEnv;
+  // Vercel: seed settings/connections/API keys from env vars AFTER schema is ready.
+  // Done here (not only inside vercelAdapter) so it also applies if we fall back to a
+  // filesystem-backed adapter on Vercel (e.g. sql.js failed to load and we use /tmp).
+  if (IS_VERCEL) {
+    const { seedFromEnv } = await import("./adapters/vercelAdapter.js");
+    seedFromEnv(adapter);
   }
 
   return adapter;

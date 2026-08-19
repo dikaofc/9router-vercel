@@ -978,6 +978,14 @@ export default function APIPageClient({ machineId }) {
           </Button>
         </div>
 
+        {IS_VERCEL && (
+          <div className="mb-4">
+            <SecurityWarning
+              message="Deployed on Vercel: the database is in-memory and ephemeral. API keys created here disappear on every cold start or when a request hits a different serverless instance — that is why your keys keep vanishing and /v1 calls return 401. To keep stable keys, set the API_KEYS environment variable (comma-separated) in your Vercel project; those keys are re-seeded on every cold start."
+            />
+          </div>
+        )}
+
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
           <div>
             <p className="font-medium">Require API key</p>
