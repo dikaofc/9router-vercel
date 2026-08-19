@@ -8,7 +8,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const keys = await getApiKeys();
-    return NextResponse.json({ keys });
+    // Whether the Vercel DB is backed by a shared KV store (keys survive cold starts).
+    const persistent = !!(
+      process.env.KV_REST_API_URL ||
+      process.env.UPSTASH_REDIS_REST_URL
+    );
+    return NextResponse.json({ keys, persistent });
   } catch (error) {
     console.log("Error fetching keys:", error);
     return NextResponse.json({ error: "Failed to fetch keys" }, { status: 500 });

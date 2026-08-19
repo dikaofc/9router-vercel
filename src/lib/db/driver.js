@@ -88,6 +88,10 @@ async function initAdapter() {
     state.logged = true;
   }
 
+  // On Vercel with a KV-backed adapter, suppress per-step persistence during migration
+  // + seeding and flush once at the end (single durable write instead of dozens of curls).
+  if (IS_VERCEL && typeof adapter._seeding === "boolean") adapter._seeding = true;
+
   const { runMigrationOnce } = await import("./migrate.js");
   await runMigrationOnce(adapter);
 
@@ -97,6 +101,8 @@ async function initAdapter() {
   if (IS_VERCEL) {
     const { seedFromEnv } = await import("./adapters/vercelAdapter.js");
     seedFromEnv(adapter);
+    if (typeof adapter._seeding === "boolean") adapter._seeding = false;
+    if (typeof adapter._persist === "function") adapter._persist();
   }
 
   return adapter;

@@ -21,6 +21,7 @@ const IS_VERCEL = typeof process !== "undefined" && !!process.env?.VERCEL;
 
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
+  const [persistent, setPersistent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
@@ -261,6 +262,7 @@ export default function APIPageClient({ machineId }) {
         const res = await fetch("/api/keys");
         if (!res.ok) return [];
         const data = await res.json();
+        setPersistent(data.persistent ?? false);
         return data.keys || [];
       };
 
@@ -978,10 +980,17 @@ export default function APIPageClient({ machineId }) {
           </Button>
         </div>
 
-        {IS_VERCEL && (
+        {IS_VERCEL && !persistent && (
           <div className="mb-4">
             <SecurityWarning
-              message="Deployed on Vercel: the database is in-memory and ephemeral. API keys created here disappear on every cold start or when a request hits a different serverless instance — that is why your keys keep vanishing and /v1 calls return 401. To keep stable keys, set the API_KEYS environment variable (comma-separated) in your Vercel project; those keys are re-seeded on every cold start."
+              message="Deployed on Vercel: the database is in-memory and ephemeral. API keys created here disappear on every cold start or when a request hits a different serverless instance — that is why your keys keep vanishing and /v1 calls return 401. To keep stable keys, either set the API_KEYS environment variable (comma-separated) in your Vercel project, or connect a Vercel KV / Upstash store (KV_REST_API_URL + KV_REST_API_TOKEN) so the database persists across instances."
+            />
+          </div>
+        )}
+        {IS_VERCEL && persistent && (
+          <div className="mb-4">
+            <SecurityWarning
+              message="Deployed on Vercel with a persistent KV store connected — API keys and other settings now survive cold starts and are shared across all serverless instances."
             />
           </div>
         )}

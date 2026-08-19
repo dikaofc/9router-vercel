@@ -4,6 +4,7 @@
  * State is lost between serverless invocations (acceptable for free-tier proxy).
  */
 import initSqlJs from "sql.js";
+import { execFileSync } from "node:child_process";
 import { PRAGMA_SQL } from "../schema.js";
 
 let SQL = null;
@@ -12,6 +13,45 @@ async function loadSql() {
   if (SQL) return SQL;
   SQL = await initSqlJs();
   return SQL;
+}
+
+// Optional shared persistence for Vercel: back the in-memory sql.js DB with a
+// Vercel KV / Upstash Redis store so dashboard-created API keys, provider connections,
+// settings, combos, etc. survive cold starts AND are shared across serverless instances.
+// Enable by setting KV_REST_API_URL + KV_REST_API_TOKEN (Vercel KV) or
+// UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (Upstash). Persistence is synchronous
+// (via curl) so the existing synchronous adapter interface is unchanged and every write is
+// durable before the serverless function returns. If KV is not configured (or curl is
+// unavailable) it degrades gracefully to the previous ephemeral in-memory behaviour.
+const DB_KV_KEY = "9router:db";
+
+function detectKv() {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (url && token) return { url: String(url).replace(/\/+$/, ""), token: String(token) };
+  return null;
+}
+
+function kvRead(kv) {
+  const out = execFileSync(
+    "curl",
+    ["-s", "--max-time", "8", "-H", `Authorization: Bearer ${kv.token}`, `${kv.url}/get/${encodeURIComponent(DB_KV_KEY)}`],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
+  );
+  const parsed = JSON.parse(out);
+  if (parsed && typeof parsed.result === "string" && parsed.result.length) {
+    return Uint8Array.from(Buffer.from(parsed.result, "base64"));
+  }
+  return null;
+}
+
+function kvWrite(kv, bytes) {
+  const b64 = Buffer.from(bytes).toString("base64");
+  execFileSync(
+    "curl",
+    ["-s", "--max-time", "10", "-X", "POST", "-H", `Authorization: Bearer ${kv.token}`, "-H", "Content-Type: text/plain", "--data-binary", "@-", `${kv.url}/set/${encodeURIComponent(DB_KV_KEY)}`],
+    { input: b64, stdio: ["pipe", "ignore", "ignore"] }
+  );
 }
 
 export function seedFromEnv(adapter) {
@@ -121,11 +161,40 @@ export function seedFromEnv(adapter) {
 
 export async function createVercelAdapter() {
   const SQLLib = await loadSql();
-  const db = new SQLLib.Database();
+  const kv = detectKv();
+
+  let db;
+  if (kv) {
+    try {
+      const bytes = kvRead(kv);
+      if (bytes) db = new SQLLib.Database(bytes);
+    } catch (e) {
+      console.warn(`[DB/Vercel] Failed to load DB from KV (starting fresh): ${e.message}`);
+    }
+  }
+  if (!db) db = new SQLLib.Database();
   db.exec(PRAGMA_SQL);
 
-  let dirty = false;
-  function scheduleSave() { dirty = true; }
+  const adapter = {
+    driver: kv ? "vercel-kv" : "vercel-in-memory",
+    _kv: kv,
+    _seeding: false,
+    run, get, all, exec, transaction, close, raw: db,
+  };
+
+  function persist() {
+    if (!adapter._kv || adapter._seeding) return;
+    try {
+      kvWrite(adapter._kv, db.export());
+    } catch (e) {
+      console.warn(`[DB/Vercel] Failed to persist DB to KV: ${e.message}`);
+    }
+  }
+  adapter._persist = persist;
+
+  // Persist synchronously on every mutation so state is durable before the
+  // serverless function returns (no request-teardown hook required).
+  function scheduleSave() { persist(); }
 
   function paramsObj(params) {
     if (!params || (Array.isArray(params) && params.length === 0)) return undefined;
@@ -180,11 +249,6 @@ export async function createVercelAdapter() {
   }
 
   function close() { db.close(); }
-
-  const adapter = {
-    driver: "vercel-in-memory",
-    run, get, all, exec, transaction, close, raw: db,
-  };
 
   return adapter;
 }
