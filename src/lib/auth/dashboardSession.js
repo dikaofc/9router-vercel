@@ -3,24 +3,23 @@ import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { DATA_DIR } from "@/lib/dataDir";
+import { DATA_DIR } from "@/lib/dataDir"
 import { getSettings } from "@/lib/localDb";
 
 const DEFAULT_PASSWORD = "123456";
-
-// Detect Vercel serverless environment
 const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
 
+// Simple HMAC secret for Vercel (deterministic, no JWT needed)
+function getHmacSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  return crypto.createHash('sha256').update('9router-vercel-' + (process.env.VERCEL_PROJECT_NAME || 'default')).digest('hex');
+}
+
 function loadJwtSecret() {
-  // Always prefer env var (critical for Vercel — no file persistence)
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
 
-  // On Vercel without JWT_SECRET: use deterministic fallback (random would break on cold starts)
   if (IS_VERCEL) {
-    const fallback = process.env.INITIAL_PASSWORD
-      || crypto.createHash('sha256').update('9router-jwt-vercel-' + (process.env.VERCEL_PROJECT_NAME || 'default')).digest('hex');
-    console.warn("[Auth] No JWT_SECRET env var on Vercel — using deterministic fallback (set JWT_SECRET for production!)");
-    return fallback;
+    return getHmacSecret();
   }
 
   const file = path.join(DATA_DIR, "jwt-secret");
@@ -47,6 +46,13 @@ export function shouldUseSecureCookie(request) {
 }
 
 export async function createDashboardAuthToken(claims = {}) {
+  // On Vercel: use simple HMAC cookie instead of JWT (stable across cold starts)
+  if (IS_VERCEL) {
+    const payload = JSON.stringify({ authenticated: true, ...claims, ts: Date.now() });
+    const sig = crypto.createHmac("sha256", getHmacSecret()).update(payload).digest("hex");
+    return Buffer.from(JSON.stringify({ p: payload, s: sig })).toString("base64");
+  }
+
   return new SignJWT({ authenticated: true, ...claims })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -56,6 +62,20 @@ export async function createDashboardAuthToken(claims = {}) {
 
 export async function verifyDashboardAuthToken(token) {
   if (!token) return false;
+
+  // On Vercel: verify simple HMAC cookie
+  if (IS_VERCEL) {
+    try {
+      const decoded = JSON.parse(Buffer.from(token, "base64").toString());
+      const expectedSig = crypto.createHmac("sha256", getHmacSecret()).update(decoded.p).digest("hex");
+      if (decoded.s !== expectedSig) return false;
+      const payload = JSON.parse(decoded.p);
+      return payload.authenticated === true;
+    } catch {
+      return false;
+    }
+  }
+
   try {
     await jwtVerify(token, SECRET);
     return true;
@@ -66,6 +86,18 @@ export async function verifyDashboardAuthToken(token) {
 
 export async function getDashboardAuthSession(token) {
   if (!token) return null;
+
+  if (IS_VERCEL) {
+    try {
+      const decoded = JSON.parse(Buffer.from(token, "base64").toString());
+      const expectedSig = crypto.createHmac("sha256", getHmacSecret()).update(decoded.p).digest("hex");
+      if (decoded.s !== expectedSig) return null;
+      return JSON.parse(decoded.p);
+    } catch {
+      return null;
+    }
+  }
+
   try {
     const { payload } = await jwtVerify(token, SECRET);
     return payload;
@@ -88,7 +120,6 @@ export function clearDashboardAuthCookie(cookieStore) {
   cookieStore.delete("auth_token");
 }
 
-// Verify the current dashboard password (re-auth for sensitive actions).
 export async function verifyDashboardPassword(password) {
   if (typeof password !== "string" || !password) return false;
   const settings = await getSettings();

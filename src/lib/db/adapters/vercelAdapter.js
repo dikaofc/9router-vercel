@@ -15,18 +15,14 @@ async function loadSql() {
 }
 
 function seedFromEnv(adapter) {
-  // Seed settings from env vars if the settings table is empty
   const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");
   const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;
 
   const settings = {};
-
-  // Core settings
   if (process.env.INITIAL_PASSWORD) settings.password = process.env.INITIAL_PASSWORD;
   if (process.env.JWT_SECRET) settings.jwtSecret = process.env.JWT_SECRET;
 
-  // Provider connections from env: PROVIDER_<NAME>_API_KEY=xxx
   const providerPrefixes = [
     "OPENAI", "ANTHROPIC", "GEMINI", "GROQ", "DEEPSEEK", "XAI",
     "MISTRAL", "COHERE", "TOGETHER", "FIREWORKS", "CEREBRAS",
@@ -43,45 +39,33 @@ function seedFromEnv(adapter) {
   for (const prefix of providerPrefixes) {
     const apiKey = process.env[`PROVIDER_${prefix}_API_KEY`];
     if (!apiKey) continue;
-
     const providerLower = prefix.toLowerCase();
-    const id = `vercel-${providerLower}-${Date.now()}`;
-
     connections.push({
-      id,
+      id: `vercel-${providerLower}-${Date.now()}`,
       provider: providerLower,
       authType: "apikey",
       name: `${providerLower} (Vercel)`,
-      email: null,
-      priority: null,
-      isActive: 1,
+      email: null, priority: null, isActive: 1,
       data: JSON.stringify({ apiKey, providerSpecificData: {} }),
-      createdAt: now,
-      updatedAt: now,
+      createdAt: now, updatedAt: now,
     });
   }
 
-  // Also support a generic PROVIDER_API_KEY env var
   const genericKey = process.env.PROVIDER_API_KEY;
   const genericProvider = process.env.PROVIDER_NAME || "openai";
   if (genericKey) {
     connections.push({
       id: `vercel-generic-${Date.now()}`,
-      provider: genericProvider,
-      authType: "apikey",
+      provider: genericProvider, authType: "apikey",
       name: `${genericProvider} (Vercel)`,
-      email: null,
-      priority: null,
-      isActive: 1,
+      email: null, priority: null, isActive: 1,
       data: JSON.stringify({ apiKey: genericKey, providerSpecificData: {} }),
-      createdAt: now,
-      updatedAt: now,
+      createdAt: now, updatedAt: now,
     });
   }
 
-  // Seed settings — use run() for parameterized inserts (exec doesn't accept params)
   const defaultSettings = {
-    requireLogin: false,
+    requireLogin: true,  // Password protection ON (default: 123456)
     requireApiKey: false,
     rtkEnabled: true,
     headroomEnabled: false,
@@ -94,17 +78,14 @@ function seedFromEnv(adapter) {
 
   adapter.run(`INSERT INTO settings(id, data) VALUES(1, ?)`, [JSON.stringify(defaultSettings)]);
 
-  // Seed API key from env
   const apiKeySecret = process.env.API_KEY_SECRET;
   if (apiKeySecret) {
-    const keyId = `vercel-key-${Date.now()}`;
     adapter.run(
       `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
-      [keyId, apiKeySecret, "Vercel API Key", null, 1, now]
+      [`vercel-key-${Date.now()}`, apiKeySecret, "Vercel API Key", null, 1, now]
     );
   }
 
-  // Seed provider connections
   for (const conn of connections) {
     adapter.run(
       `INSERT INTO providerConnections(id, provider, authType, name, email, priority, isActive, data, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -121,7 +102,6 @@ export async function createVercelAdapter() {
   db.exec(PRAGMA_SQL);
 
   let dirty = false;
-
   function scheduleSave() { dirty = true; }
 
   function paramsObj(params) {
@@ -138,9 +118,7 @@ export async function createVercelAdapter() {
       const lastInsertRowid = db.exec("SELECT last_insert_rowid() as id")[0]?.values?.[0]?.[0] ?? null;
       scheduleSave();
       return { changes, lastInsertRowid };
-    } finally {
-      stmt.free();
-    }
+    } finally { stmt.free(); }
   }
 
   function get(sql, params = []) {
@@ -149,9 +127,7 @@ export async function createVercelAdapter() {
       stmt.bind(paramsObj(params));
       if (stmt.step()) return stmt.getAsObject();
       return undefined;
-    } finally {
-      stmt.free();
-    }
+    } finally { stmt.free(); }
   }
 
   function all(sql, params = []) {
@@ -161,9 +137,7 @@ export async function createVercelAdapter() {
       const rows = [];
       while (stmt.step()) rows.push(stmt.getAsObject());
       return rows;
-    } finally {
-      stmt.free();
-    }
+    } finally { stmt.free(); }
   }
 
   function exec(sql) { db.exec(sql); scheduleSave(); }
@@ -184,14 +158,11 @@ export async function createVercelAdapter() {
 
   function close() { db.close(); }
 
-  // Build adapter object first so we can pass it to seedFromEnv
   const adapter = {
     driver: "vercel-in-memory",
     run, get, all, exec, transaction, close, raw: db,
   };
 
-  // Deferred seeding — called by driver.js after migrate creates tables
   adapter._seedFromEnv = () => seedFromEnv(adapter);
-
   return adapter;
 }
