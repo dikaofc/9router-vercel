@@ -17,6 +17,8 @@ import EndpointRow from "./components/EndpointRow";
 import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
+const IS_VERCEL = typeof process !== "undefined" && !!process.env?.VERCEL;
+
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -735,7 +737,7 @@ export default function APIPageClient({ machineId }) {
             copied={copied}
             onCopy={copy}
           />
-          {/* Cloudflare Tunnel */}
+          {!IS_VERCEL && (<> {/* Cloudflare Tunnel */}
           <div className="flex items-center gap-2">
             <span className={`text-xs font-mono px-1.5 py-0.5 rounded shrink-0 min-w-[88px] text-center ${
               tunnelEnabled ? "bg-primary/10 text-primary" : "bg-surface-2 text-text-muted"
@@ -913,6 +915,7 @@ export default function APIPageClient({ machineId }) {
           </div>
         </div>
 
+        )} </>)} {/* end IS_VERCEL tunnel/tailscale hide */}
         {/* Pre-enable security gate banner */}
         {isLoginUnsafe && !tunnelEnabled && !tsEnabled && (
           <div className="mt-4">
@@ -923,8 +926,8 @@ export default function APIPageClient({ machineId }) {
           </div>
         )}
 
-        {/* Security warnings when tunnel or tailscale is active */}
-        {(tunnelEnabled || tsEnabled) && (
+        {/* Security warnings (hidden on Vercel) */}
+        {!IS_VERCEL && (tunnelEnabled || tsEnabled) && (
           <div className="mt-4 flex flex-col gap-2">
             {!requireApiKey && (
               <SecurityWarning
@@ -948,8 +951,8 @@ export default function APIPageClient({ machineId }) {
           </div>
         )}
 
-        {/* Tunnel dashboard access option */}
-        {(tunnelEnabled || tsEnabled) && (
+        {/* Tunnel dashboard access (hidden on Vercel) */}
+        {!IS_VERCEL && (tunnelEnabled || tsEnabled) && (
           <div className="mt-4 pt-4 border-t border-border flex items-center gap-3">
             <Toggle
               checked={tunnelDashboardAccess}
@@ -1145,7 +1148,7 @@ export default function APIPageClient({ machineId }) {
         </div>
       </Modal>
 
-      {/* Enable Tunnel Modal */}
+      {!IS_VERCEL && (<> {/* Enable Tunnel Modal */}
       <Modal
         isOpen={showEnableTunnelModal}
         title="Enable Tunnel"
@@ -1291,6 +1294,7 @@ export default function APIPageClient({ machineId }) {
         </div>
       </Modal>
 
+      )} </>)} {/* end IS_VERCEL modal hide */}
       {/* Confirm Modal */}
       <ConfirmModal
         isOpen={!!confirmState}

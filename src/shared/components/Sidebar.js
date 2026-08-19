@@ -24,6 +24,7 @@ const navItems = [
   { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
   { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
   { href: "/dashboard/smart-ip", label: "Smart IP", icon: "smart_toy" },
+  { href: "/dashboard/system-status", label: "System Status", icon: "monitoring" },
 ];
 
 const systemItems = [
