@@ -14,10 +14,10 @@ async function loadSql() {
   return SQL;
 }
 
-function seedFromEnv(db) {
+function seedFromEnv(adapter) {
   // Seed settings from env vars if the settings table is empty
-  const existing = db.exec("SELECT COUNT(*) as cnt FROM settings");
-  const count = existing?.[0]?.values?.[0]?.[0] || 0;
+  const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");
+  const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;
 
   const settings = {};
@@ -27,7 +27,6 @@ function seedFromEnv(db) {
   if (process.env.JWT_SECRET) settings.jwtSecret = process.env.JWT_SECRET;
 
   // Provider connections from env: PROVIDER_<NAME>_API_KEY=xxx
-  // Example: PROVIDER_GLM_API_KEY=xxx → creates a GLM API key connection
   const providerPrefixes = [
     "OPENAI", "ANTHROPIC", "GEMINI", "GROQ", "DEEPSEEK", "XAI",
     "MISTRAL", "COHERE", "TOGETHER", "FIREWORKS", "CEREBRAS",
@@ -56,10 +55,7 @@ function seedFromEnv(db) {
       email: null,
       priority: null,
       isActive: 1,
-      data: JSON.stringify({
-        apiKey,
-        providerSpecificData: {},
-      }),
+      data: JSON.stringify({ apiKey, providerSpecificData: {} }),
       createdAt: now,
       updatedAt: now,
     });
@@ -77,17 +73,13 @@ function seedFromEnv(db) {
       email: null,
       priority: null,
       isActive: 1,
-      data: JSON.stringify({
-        apiKey: genericKey,
-        providerSpecificData: {},
-      }),
+      data: JSON.stringify({ apiKey: genericKey, providerSpecificData: {} }),
       createdAt: now,
       updatedAt: now,
     });
   }
 
-  // Seed settings
-  // On Vercel: no login required by default (JWT_SECRET not needed)
+  // Seed settings — use run() for parameterized inserts (exec doesn't accept params)
   const defaultSettings = {
     requireLogin: false,
     requireApiKey: false,
@@ -100,13 +92,13 @@ function seedFromEnv(db) {
     ...settings,
   };
 
-  db.exec(`INSERT INTO settings(id, data) VALUES(1, ?)`, [JSON.stringify(defaultSettings)]);
+  adapter.run(`INSERT INTO settings(id, data) VALUES(1, ?)`, [JSON.stringify(defaultSettings)]);
 
   // Seed API key from env
   const apiKeySecret = process.env.API_KEY_SECRET;
   if (apiKeySecret) {
     const keyId = `vercel-key-${Date.now()}`;
-    db.exec(
+    adapter.run(
       `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
       [keyId, apiKeySecret, "Vercel API Key", null, 1, now]
     );
@@ -114,7 +106,7 @@ function seedFromEnv(db) {
 
   // Seed provider connections
   for (const conn of connections) {
-    db.exec(
+    adapter.run(
       `INSERT INTO providerConnections(id, provider, authType, name, email, priority, isActive, data, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [conn.id, conn.provider, conn.authType, conn.name, conn.email, conn.priority, conn.isActive, conn.data, conn.createdAt, conn.updatedAt]
     );
@@ -125,17 +117,12 @@ function seedFromEnv(db) {
 
 export async function createVercelAdapter() {
   const SQLLib = await loadSql();
-  // In-memory database — no file
   const db = new SQLLib.Database();
   db.exec(PRAGMA_SQL);
 
-  // Track unsaved state (no persistence needed, but keep interface compatible)
   let dirty = false;
 
-  function scheduleSave() {
-    dirty = true;
-    // No-op: we're in-memory, nothing to persist
-  }
+  function scheduleSave() { dirty = true; }
 
   function paramsObj(params) {
     if (!params || (Array.isArray(params) && params.length === 0)) return undefined;
@@ -179,10 +166,7 @@ export async function createVercelAdapter() {
     }
   }
 
-  function exec(sql) {
-    db.exec(sql);
-    scheduleSave();
-  }
+  function exec(sql) { db.exec(sql); scheduleSave(); }
 
   function transaction(fn) {
     const sp = `sp_${Math.random().toString(36).slice(2)}`;
@@ -193,33 +177,21 @@ export async function createVercelAdapter() {
       scheduleSave();
       return result;
     } catch (e) {
-      try {
-        db.exec(`ROLLBACK TO ${sp}`);
-        db.exec(`RELEASE ${sp}`);
-      } catch {}
+      try { db.exec(`ROLLBACK TO ${sp}`); db.exec(`RELEASE ${sp}`); } catch {}
       throw e;
     }
   }
 
-  function close() {
-    db.close();
-  }
+  function close() { db.close(); }
 
-  // Export seedFromEnv so driver.js can call it AFTER schema migration
-  // (tables don't exist yet at this point)
+  // Build adapter object first so we can pass it to seedFromEnv
   const adapter = {
     driver: "vercel-in-memory",
-    run,
-    get,
-    all,
-    exec,
-    transaction,
-    close,
-    raw: db,
+    run, get, all, exec, transaction, close, raw: db,
   };
 
   // Deferred seeding — called by driver.js after migrate creates tables
-  adapter._seedFromEnv = () => seedFromEnv({ exec, all });
+  adapter._seedFromEnv = () => seedFromEnv(adapter);
 
   return adapter;
 }
