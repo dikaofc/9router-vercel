@@ -76,26 +76,18 @@ export default function DashboardLayout({ children }) {
         />
       )}
 
-      {/* Sidebar - Desktop */}
-      <div className="hidden lg:flex">
-        <Sidebar />
-      </div>
-
-      {/* Sidebar - Mobile */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 transform lg:hidden transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <Sidebar onClose={() => setSidebarOpen(false)} />
-      </div>
+      {/* Floating Tab Bar (replaces sidebar) */}
+      <Sidebar onClose={() => setSidebarOpen(false)} />
 
       {/* Main content */}
       <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate">
         {/* Faint grid background */}
         <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
         <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
-        <div className={`flex-1 overflow-y-auto custom-scrollbar ${pathname === "/dashboard/basic-chat" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}>
+        <div
+          data-scroll-container
+          className={`flex-1 overflow-y-auto custom-scrollbar pt-14 ${pathname === "/dashboard/basic-chat" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}
+        >
           <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}>{children}</div>
         </div>
       </main>
