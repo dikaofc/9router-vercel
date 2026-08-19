@@ -23,11 +23,15 @@ export async function GET() {
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
     
+    // On Vercel, password lives in INITIAL_PASSWORD env var, not in DB
+    const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
+    const passwordExists = !!password || (IS_VERCEL && !!process.env.INITIAL_PASSWORD);
+
     return NextResponse.json({ 
       ...safeSettings, 
       enableRequestLogs,
       enableTranslator,
-      hasPassword: !!password
+      hasPassword: passwordExists
     }, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
     console.log("Error getting settings:", error);
