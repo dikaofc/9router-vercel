@@ -4,6 +4,9 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { verifyDashboardAuthToken } from "@/lib/auth/dashboardSession";
 import { hasTrustedPeerHeaders } from "@/lib/auth/trustedPeer";
 
+// Detect Vercel serverless environment
+const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
+
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
@@ -37,7 +40,8 @@ const PUBLIC_API_PATHS = [
 const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex"];
 
 // Always require JWT token regardless of requireLogin setting
-const ALWAYS_PROTECTED = [
+// On Vercel, relax shutdown/update endpoints (no local process to manage)
+const ALWAYS_PROTECTED = IS_VERCEL ? [] : [
   "/api/shutdown",
   "/api/settings/database",
   "/api/version/shutdown",
@@ -68,7 +72,8 @@ const PROTECTED_API_PATHS = [
 ];
 
 // Routes that spawn child processes or read host secrets — restrict to localhost.
-const LOCAL_ONLY_PATHS = [
+// On Vercel, skip local-only restrictions (no localhost concept in serverless)
+const LOCAL_ONLY_PATHS = IS_VERCEL ? [] : [
   "/api/cli-tools/cowork-settings",
   "/api/cli-tools/antigravity-mitm",
   "/api/mcp/",

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npx next build",
+  "installCommand": "npm install",
+  "outputDirectory": ".next",
+  "functions": {
+    "src/app/api/**/**.js": {
+      "maxDuration": 30,
+      "memory": 1024
+    },
+    "src/app/api/v1/**/**.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
+  "env": {
+    "NEXT_PUBLIC_BASE_URL": "@vercel_url"
+  },
+  "headers": [
+    {
+      "source": "/v1/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "*" }
+      ]
+    },
+    {
+      "source": "/api/v1/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "*" }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/v1/v1/:path*",
+      "destination": "/api/v1/:path*"
+    },
+    {
+      "source": "/codex/:path*",
+      "destination": "/api/v1/responses"
+    },
+    {
+      "source": "/responses",
+      "destination": "/api/v1/responses"
+    },
+    {
+      "source": "/v1beta/:path*",
+      "destination": "/api/v1beta/:path*"
+    },
+    {
+      "source": "/v1/:path*",
+      "destination": "/api/v1/:path*"
+    },
+    {
+      "source": "/v1",
+      "destination": "/api/v1"
+    }
+  ]
+}

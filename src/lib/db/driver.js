@@ -4,6 +4,20 @@ import { ensureDirs, DATA_FILE } from "./paths.js";
 if (!global._dbAdapter) global._dbAdapter = { instance: null, initPromise: null, logged: false };
 const state = global._dbAdapter;
 
+// Detect Vercel serverless environment
+const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
+
+async function tryVercelAdapter() {
+  if (!IS_VERCEL) return null;
+  try {
+    const { createVercelAdapter } = await import("./adapters/vercelAdapter.js");
+    return await createVercelAdapter();
+  } catch (e) {
+    console.warn(`[DB] Vercel adapter unavailable: ${e.message}`);
+    return null;
+  }
+}
+
 async function tryBunSqlite() {
   // Bun runtime only — built-in, no install needed
   if (!process.versions.bun) return null;
@@ -53,18 +67,24 @@ async function trySqlJs() {
 }
 
 async function initAdapter() {
-  ensureDirs();
-  // Order per runtime:
-  //   Bun:  bun:sqlite → sql.js
-  //   Node: better-sqlite3 → node:sqlite (≥22.5) → sql.js
-  let adapter = await tryBunSqlite();
-  if (!adapter) adapter = await tryBetterSqlite();
-  if (!adapter) adapter = await tryNodeSqlite();
-  if (!adapter) adapter = await trySqlJs();
-  if (!adapter) throw new Error("[DB] No SQLite driver available (bun/better/node/sql.js all failed)");
+  // On Vercel, skip filesystem operations entirely
+  if (!IS_VERCEL) ensureDirs();
+
+  // Vercel: use in-memory adapter first (no filesystem needed)
+  let adapter = await tryVercelAdapter();
+  if (!adapter) {
+    // Order per runtime:
+    //   Bun:  bun:sqlite → sql.js
+    //   Node: better-sqlite3 → node:sqlite (≥22.5) → sql.js
+    adapter = await tryBunSqlite();
+    if (!adapter) adapter = await tryBetterSqlite();
+    if (!adapter) adapter = await tryNodeSqlite();
+    if (!adapter) adapter = await trySqlJs();
+  }
+  if (!adapter) throw new Error("[DB] No SQLite driver available (bun/better/node/sql.js/vercel all failed)");
 
   if (!state.logged) {
-    console.log(`[DB] Driver: ${adapter.driver} | file: ${DATA_FILE}`);
+    console.log(`[DB] Driver: ${adapter.driver} | file: ${IS_VERCEL ? "(in-memory)" : DATA_FILE}`);
     state.logged = true;
   }
 

@@ -8,15 +8,32 @@ import { getSettings } from "@/lib/localDb";
 
 const DEFAULT_PASSWORD = "123456";
 
+// Detect Vercel serverless environment
+const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
+
 function loadJwtSecret() {
+  // Always prefer env var (critical for Vercel — no file persistence)
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+
+  // On Vercel without JWT_SECRET: use INITIAL_PASSWORD as fallback secret
+  // WARNING: Set JWT_SECRET env var for proper security!
+  if (IS_VERCEL) {
+    const fallback = process.env.INITIAL_PASSWORD || crypto.randomBytes(32).toString("hex");
+    console.warn("[Auth] No JWT_SECRET env var on Vercel — using fallback (set JWT_SECRET for production!)");
+    return fallback;
+  }
+
   const file = path.join(DATA_DIR, "jwt-secret");
   try {
     return fs.readFileSync(file, "utf8").trim();
   } catch {}
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  } catch {}
   const generated = crypto.randomBytes(32).toString("hex");
-  fs.writeFileSync(file, generated, { mode: 0o600 });
+  try {
+    fs.writeFileSync(file, generated, { mode: 0o600 });
+  } catch {}
   return generated;
 }
 
