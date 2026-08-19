@@ -90,6 +90,13 @@ async function initAdapter() {
 
   const { runMigrationOnce } = await import("./migrate.js");
   await runMigrationOnce(adapter);
+
+  // Vercel: seed settings/connections from env vars AFTER schema is ready
+  if (adapter._seedFromEnv) {
+    adapter._seedFromEnv();
+    delete adapter._seedFromEnv;
+  }
+
   return adapter;
 }
 

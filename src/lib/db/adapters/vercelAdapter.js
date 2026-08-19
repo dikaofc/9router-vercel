@@ -204,10 +204,9 @@ export async function createVercelAdapter() {
     db.close();
   }
 
-  // Seed from environment variables
-  seedFromEnv(db);
-
-  return {
+  // Export seedFromEnv so driver.js can call it AFTER schema migration
+  // (tables don't exist yet at this point)
+  const adapter = {
     driver: "vercel-in-memory",
     run,
     get,
@@ -217,4 +216,9 @@ export async function createVercelAdapter() {
     close,
     raw: db,
   };
+
+  // Deferred seeding — called by driver.js after migrate creates tables
+  adapter._seedFromEnv = () => seedFromEnv({ exec, all });
+
+  return adapter;
 }
