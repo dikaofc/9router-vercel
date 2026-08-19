@@ -1,21 +1,23 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  ExternalLink,
-  Github,
-  Package,
-  Send,
-  Globe,
-  Coffee,
-  Copy,
-  Check,
-  Heart,
-  Info,
-  ShieldCheck,
-  Terminal,
-  Cpu
-} from "lucide-react";
+// lucide-react removed - using Material Symbols instead
+const iconMap = {
+  ExternalLink: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>open_in_new</span>,
+  Github: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>code</span>,
+  Package: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>inventory_2</span>,
+  Send: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>send</span>,
+  Globe: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>language</span>,
+  Coffee: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>local_cafe</span>,
+  Copy: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>content_copy</span>,
+  Check: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>check</span>,
+  Heart: ({ className: c, ...p }) => <span className={`material-symbols-outlined text-red-600 ${c || ""}`} {...p}>favorite</span>,
+  Info: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>info</span>,
+  ShieldCheck: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>verified_user</span>,
+  Terminal: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>terminal</span>,
+  Cpu: ({ className: c, ...p }) => <span className={`material-symbols-outlined ${c || ""}`} {...p}>memory</span>,
+};
+const { ExternalLink, Github, Package, Send, Globe, Coffee, Copy, Check, Heart, Info, ShieldCheck, Terminal, Cpu } = iconMap;
 
 // Win98 Classic Button Component with authentic 3D border & active press state
 const Win98Button = ({ children, onClick, href, primary, icon: Icon, className = "" }) => {
