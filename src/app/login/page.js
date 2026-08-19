@@ -120,8 +120,8 @@ export default function LoginPage() {
 
   if (hasPassword === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0c1018]">
-        <div className="flex items-center gap-2 px-4 py-2 text-sm text-slate-400">
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="flex items-center gap-2 px-4 py-2 text-sm text-text-muted">
           <Spinner /> Loading...
         </div>
       </div>
@@ -129,21 +129,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0c1018] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo + Title */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-600 mb-3">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-500 mb-3">
             <span className="material-symbols-outlined text-white text-[22px]">hub</span>
           </div>
-          <h1 className="text-xl font-bold text-white">9Router</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h1 className="text-xl font-bold text-text-main">9Router</h1>
+          <p className="text-xs text-text-muted mt-0.5">
             {samlAvailable ? "SAML 2.0 SSO" : oidcAvailable ? "OIDC Login" : "Enter password to continue"}
           </p>
         </div>
 
         {/* Card */}
-        <div className="bg-[#141a26] border border-white/10 rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-[14px] shadow-[var(--shadow-soft)] p-5">
           {mustChange ? (
             <form onSubmit={handleSetNewPassword} className="space-y-3">
               <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
@@ -155,13 +155,13 @@ export default function LoginPage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required autoFocus
-                className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full px-3 py-2.5 rounded-lg bg-surface-2 border border-border text-text-main text-sm placeholder-text-muted focus:outline-none focus:border-brand-500 transition-colors"
               />
-              {error && <p className="text-xs text-rose-400">{error}</p>}
+              {error && <p className="text-xs text-red-500">{error}</p>}
               <button
                 type="submit"
                 disabled={loading || !newPassword}
-                className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? <Spinner /> : "Set Password"}
               </button>
@@ -171,21 +171,21 @@ export default function LoginPage() {
               {/* SSO Buttons */}
               {samlAvailable && (
                 <button onClick={() => { window.location.href = "/api/auth/saml/start"; }}
-                  className="w-full py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-medium border border-white/10 transition-colors">
+                  className="w-full py-2.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-text-main text-sm font-medium border border-border transition-colors">
                   {samlLoginLabel}
                 </button>
               )}
               {oidcAvailable && (
                 <button onClick={() => { window.location.href = "/api/auth/oidc/start"; }}
-                  className="w-full py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-medium border border-white/10 transition-colors">
+                  className="w-full py-2.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-text-main text-sm font-medium border border-border transition-colors">
                   {oidcLoginLabel}
                 </button>
               )}
               {ssoAvailable && passwordAvailable && (
-                <div className="flex items-center gap-2 text-[11px] text-slate-600">
-                  <div className="flex-1 h-px bg-white/10" />
+                <div className="flex items-center gap-2 text-[11px] text-text-subtle">
+                  <div className="flex-1 h-px bg-border" />
                   <span>OR</span>
-                  <div className="flex-1 h-px bg-white/10" />
+                  <div className="flex-1 h-px bg-border" />
                 </div>
               )}
 
@@ -198,25 +198,25 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required autoFocus={!oidcAvailable}
-                    className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="w-full px-3 py-2.5 rounded-lg bg-surface-2 border border-border text-text-main text-sm placeholder-text-muted focus:outline-none focus:border-brand-500 transition-colors"
                   />
 
-                  {error && <p className="text-xs text-rose-400">{error}</p>}
+                  {error && <p className="text-xs text-red-500">{error}</p>}
 
                   {retryAfter > 0 && (
-                    <p className="text-xs text-rose-400">Locked. Retry in {retryAfter}s.</p>
+                    <p className="text-xs text-red-500">Locked. Retry in {retryAfter}s.</p>
                   )}
 
                   {resetHint && (
-                    <p className="text-xs text-slate-500">
-                      Forgot? Run <code className="text-slate-400">9router</code> → Settings → Reset Password
+                    <p className="text-xs text-text-muted">
+                      Forgot? Run <code className="text-text-main">9router</code> → Settings → Reset Password
                     </p>
                   )}
 
                   <button
                     type="submit"
                     disabled={loading || retryAfter > 0}
-                    className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {loading ? <Spinner /> : retryAfter > 0 ? `Wait ${retryAfter}s` : "Login"}
                   </button>
@@ -224,19 +224,19 @@ export default function LoginPage() {
               )}
 
               {!passwordAvailable && error && (
-                <p className="text-xs text-rose-400 text-center">{error}</p>
+                <p className="text-xs text-red-500 text-center">{error}</p>
               )}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="mt-4 text-center text-[11px] text-slate-600 space-x-1">
-          <a href="https://t.me/dikaacode" target="_blank" rel="noopener noreferrer" className="hover:text-slate-400 transition-colors">@dikaacode</a>
+        <div className="mt-4 text-center text-[11px] text-text-subtle space-x-1">
+          <a href="https://t.me/dikaacode" target="_blank" rel="noopener noreferrer" className="hover:text-text-main transition-colors">@dikaacode</a>
           <span>·</span>
-          <a href="https://www.obitoglory.tech" target="_blank" rel="noopener noreferrer" className="hover:text-slate-400 transition-colors">obitoglory.tech</a>
+          <a href="https://www.obitoglory.tech" target="_blank" rel="noopener noreferrer" className="hover:text-text-main transition-colors">obitoglory.tech</a>
           <span>·</span>
-          <a href="https://saweria.co/dikatech" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition-colors">Donate ☕</a>
+          <a href="https://saweria.co/dikatech" target="_blank" rel="noopener noreferrer" className="hover:text-brand-500 transition-colors">Donate ☕</a>
         </div>
       </div>
     </div>
