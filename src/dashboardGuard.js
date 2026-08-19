@@ -184,6 +184,8 @@ async function loadSettings() {
 }
 
 async function isAuthenticated(request) {
+  // On Vercel: always authenticated (no JWT login required by default)
+  if (IS_VERCEL) return true;
   if (await hasValidToken(request)) return true;
   const settings = await loadSettings();
   if (settings && settings.requireLogin === false) return true;
@@ -261,7 +263,8 @@ export async function proxy(request) {
     // If login not required, allow through
     if (!requireLogin) return NextResponse.next();
 
-    // Verify JWT token
+    // On Vercel: skip JWT check (no persistent login needed)
+    if (IS_VERCEL) return NextResponse.next();
     const token = request.cookies.get("auth_token")?.value;
     if (token) {
       if (await verifyDashboardAuthToken(token)) {

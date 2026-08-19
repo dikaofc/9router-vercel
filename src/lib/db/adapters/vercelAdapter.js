@@ -87,8 +87,9 @@ function seedFromEnv(db) {
   }
 
   // Seed settings
+  // On Vercel: no login required by default (JWT_SECRET not needed)
   const defaultSettings = {
-    requireLogin: true,
+    requireLogin: false,
     requireApiKey: false,
     rtkEnabled: true,
     headroomEnabled: false,
