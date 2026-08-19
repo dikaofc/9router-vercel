@@ -19,9 +19,9 @@ function seedFromEnv(adapter) {
   const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;
 
+  // Do NOT store INITIAL_PASSWORD in settings — it's plain text, not a bcrypt hash.
+  // The login endpoint reads INITIAL_PASSWORD env var directly for comparison.
   const settings = {};
-  if (process.env.INITIAL_PASSWORD) settings.password = process.env.INITIAL_PASSWORD;
-  if (process.env.JWT_SECRET) settings.jwtSecret = process.env.JWT_SECRET;
 
   const providerPrefixes = [
     "OPENAI", "ANTHROPIC", "GEMINI", "GROQ", "DEEPSEEK", "XAI",
