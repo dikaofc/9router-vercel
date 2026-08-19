@@ -175,3 +175,16 @@ Untuk minimize cold start:
 3. **Add multiple providers** untuk redundancy:
    - Set lebih dari 1 `PROVIDER_*_API_KEY`
    - Auto-fallback kalau salah satu down
+
+---
+
+## 💖 Credits
+
+**9Router** by [decolua](https://github.com/decolua/9router) — open source AI router & token saver.
+
+**Vercel deployment patch** by **Dika Tech**
+- 📱 Telegram: [@dikaacode](https://t.me/dikaacode)
+- 💰 Donate: [saweria.co/dikatech](https://saweria.co/dikatech)
+- 💻 GitHub: [dikaofc](https://github.com/dikaofc)
+
+> If this patch helped you save money on hosting, consider buying me a coffee! ☕
