@@ -15,11 +15,11 @@ function loadJwtSecret() {
   // Always prefer env var (critical for Vercel — no file persistence)
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
 
-  // On Vercel without JWT_SECRET: use INITIAL_PASSWORD as fallback secret
-  // WARNING: Set JWT_SECRET env var for proper security!
+  // On Vercel without JWT_SECRET: use deterministic fallback (random would break on cold starts)
   if (IS_VERCEL) {
-    const fallback = process.env.INITIAL_PASSWORD || crypto.randomBytes(32).toString("hex");
-    console.warn("[Auth] No JWT_SECRET env var on Vercel — using fallback (set JWT_SECRET for production!)");
+    const fallback = process.env.INITIAL_PASSWORD
+      || crypto.createHash('sha256').update('9router-jwt-vercel-' + (process.env.VERCEL_PROJECT_NAME || 'default')).digest('hex');
+    console.warn("[Auth] No JWT_SECRET env var on Vercel — using deterministic fallback (set JWT_SECRET for production!)");
     return fallback;
   }
 
