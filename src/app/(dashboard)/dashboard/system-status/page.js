@@ -67,21 +67,24 @@ export default function SystemStatusPage() {
       const res = await fetch("/api/health");
       const health = await res.json();
 
-      // Build system status from health + runtime info
+      // Build system status from health + runtime info. Memory/counts come
+      // from the SERVER (/api/health) — process.memoryUsage() is undefined in
+      // the browser, which is why this used to show "0 B" everywhere.
       const now = new Date();
-      const memUsage = process?.memoryUsage?.() || null;
-      
+      const mem = health.memory || null;
+
       const sysStatus = {
         uptime: health.uptime || 0,
         version: health.version || "0.5.55",
         nodeEnv: health.nodeEnv || "production",
-        platform: "Vercel Serverless",
-        region: "iad1 (US East)",
+        nodeVersion: health.nodeVersion || "",
+        platform: health.platform || "Vercel Serverless",
+        region: health.region || "iad1 (US East)",
         memory: {
-          heapUsed: memUsage?.heapUsed || 0,
-          heapTotal: memUsage?.heapTotal || 0,
-          rss: memUsage?.rss || 0,
-          external: memUsage?.external || 0,
+          heapUsed: mem?.heapUsed || 0,
+          heapTotal: mem?.heapTotal || 0,
+          rss: mem?.rss || 0,
+          external: mem?.external || 0,
         },
         db: health.db || "in-memory",
         dbDriver: health.dbDriver || "sql.js",
@@ -125,12 +128,11 @@ export default function SystemStatusPage() {
         fetch("/api/usage/stats"),
       ]);
 
-      const health = healthRes.status === "fulfilled" ? await healthRes.json() : {};
-      const models = modelsRes.status === "fulfilled" ? await modelsRes.json() : {};
-      const usage = usageRes.status === "fulfilled" ? await usageRes.json() : {};
+      const health = healthRes.status === "fulfilled" && healthRes.value ? await healthRes.value.json() : {};
+      const models = modelsRes.status === "fulfilled" && modelsRes.value ? await modelsRes.value.json() : {};
+      const usage = usageRes.status === "fulfilled" && usageRes.value ? await usageRes.value.json() : {};
 
       const now = new Date();
-      const memUsage = typeof process !== "undefined" && process.memoryUsage ? process.memoryUsage() : null;
 
       setStatus((prev) => ({
         ...prev,
@@ -139,11 +141,11 @@ export default function SystemStatusPage() {
         providers: health.providers || prev?.providers || 0,
         connections: health.connections || prev?.connections || 0,
         apiKeys: health.apiKeys || prev?.apiKeys || 0,
-        memory: memUsage ? {
-          heapUsed: memUsage.heapUsed,
-          heapTotal: memUsage.heapTotal,
-          rss: memUsage.rss,
-          external: memUsage.external,
+        memory: health.memory ? {
+          heapUsed: health.memory.heapUsed,
+          heapTotal: health.memory.heapTotal,
+          rss: health.memory.rss,
+          external: health.memory.external,
         } : prev?.memory || { heapUsed: 0, heapTotal: 0, rss: 0, external: 0 },
         models: Array.isArray(models?.models) ? models.models.length : prev?.models || 0,
         requests: usage?.totalRequests || prev?.requests || 0,
@@ -305,7 +307,7 @@ export default function SystemStatusPage() {
           {[
             { label: "Platform", value: status?.platform || "Vercel Serverless" },
             { label: "Region", value: status?.region || "iad1 (US East)" },
-            { label: "Node.js", value: typeof process !== "undefined" ? process.version : "N/A" },
+            { label: "Node.js", value: status?.nodeVersion || typeof process !== "undefined" ? process.version : "N/A" },
             { label: "Runtime", value: status?.nodeEnv || "production" },
             { label: "DB Driver", value: status?.dbDriver || "sql.js" },
             { label: "DB Mode", value: status?.db || "in-memory" },
