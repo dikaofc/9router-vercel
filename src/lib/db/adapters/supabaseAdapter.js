@@ -52,7 +52,8 @@ async function sbRead(sup) {
   const res = await fetch(`${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}`, {
     headers: { apikey: sup.key, Authorization: `Bearer ${sup.key}` },
   });
-  if (!res.ok) return null;
+  if (res.status === 404) return null; // first run — no blob yet
+  if (!res.ok) throw new Error(`Supabase read failed (${res.status})`);
   const buf = await res.arrayBuffer();
   return new Uint8Array(buf);
 }
@@ -85,12 +86,19 @@ export async function createSupabaseAdapter() {
   }
 
   let db;
+  let loadFailed = false;
+  let loadError = null;
   try {
     await ensureBucket(sup);
     const bytes = await sbRead(sup);
     if (bytes) db = new SQLLib.Database(bytes);
   } catch (e) {
-    console.warn(`[DB/Supabase] Cold-start load failed, starting fresh: ${e.message}`);
+    // Read failed (network / auth — NOT a clean 404 first-run). Starting fresh
+    // would let this instance overwrite the real blob on the next persist, so
+    // go read-only instead: never clobber remote data we couldn't load.
+    loadFailed = true;
+    loadError = e.message;
+    console.warn(`[DB/Supabase] Cold-start load failed, running READ-ONLY: ${e.message}`);
   }
   if (!db) db = new SQLLib.Database();
   db.exec(PRAGMA_SQL);
@@ -99,6 +107,8 @@ export async function createSupabaseAdapter() {
     driver: "vercel-supabase",
     _sup: sup,
     _failed: false,
+    _readonly: loadFailed,
+    _lastError: loadError,
     _seeding: false,
     run,
     get,
@@ -113,9 +123,10 @@ export async function createSupabaseAdapter() {
   // mutation). On failure, mark _failed so we stop hammering Supabase and just
   // stay in-memory for the rest of this instance's life.
   function persist() {
-    if (adapter._failed || adapter._seeding || !adapter._sup) return;
+    if (adapter._failed || adapter._readonly || adapter._seeding || !adapter._sup) return;
     sbWrite(adapter._sup, db.export()).catch((e) => {
       adapter._failed = true;
+      adapter._lastError = e.message;
       console.warn(`[DB/Supabase] persist failed — falling back to in-memory: ${e.message}`);
     });
   }

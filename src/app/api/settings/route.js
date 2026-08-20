@@ -43,7 +43,13 @@ async function detectPersistence() {
         process.env.DIKA_SUPABASE_SECRET_KEY ||
         process.env.DIKA_SUPABASE_ANON_KEY)
     );
-    return { driver: adapter.driver, supabaseConfigured: hasSupabaseEnv };
+    let supabaseWriteOk = null;
+    let supabaseError = null;
+    if (adapter.driver === "vercel-supabase") {
+      supabaseWriteOk = !adapter._failed && !adapter._readonly;
+      supabaseError = adapter._lastError || null;
+    }
+    return { driver: adapter.driver, supabaseConfigured: hasSupabaseEnv, supabaseWriteOk, supabaseError };
   } catch {
     return { driver: "uninitialized", supabaseConfigured: false };
   }

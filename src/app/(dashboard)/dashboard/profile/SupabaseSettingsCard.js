@@ -21,14 +21,19 @@ export default function SupabaseSettingsCard() {
   const [persistence, setPersistence] = useState(null);
   const [hasSupabaseEnv, setHasSupabaseEnv] = useState(false);
 
+  async function reloadStatus() {
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (data?.persistence) {
+        setPersistence(data.persistence);
+        setHasSupabaseEnv(data.persistence.supabaseConfigured === true);
+      }
+    } catch {}
+  }
+
   useEffect(() => {
-    fetch("/api/settings")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.persistence) setPersistence(data.persistence);
-        setHasSupabaseEnv(data?.persistence?.supabaseConfigured === true);
-      })
-      .catch(() => {});
+    reloadStatus();
   }, []);
 
   async function save() {
@@ -51,9 +56,10 @@ export default function SupabaseSettingsCard() {
         setStatus({ type: "error", message: data.error || "Save failed" });
         return;
       }
+      await reloadStatus();
       setStatus({
         type: "success",
-        message: `Saved ${count} key(s). DB now persists to Supabase (takes effect on next restart / cold start).`,
+        message: `Saved ${count} key(s). Cek status di atas — kalau merah, write ke Supabase gagal.`,
       });
     } catch (e) {
       setStatus({ type: "error", message: e.message });
@@ -71,15 +77,29 @@ export default function SupabaseSettingsCard() {
       </p>
       <div className="text-sm mb-3 p-3 rounded-lg border border-border bg-bg flex flex-col gap-1">
         <p className="text-text-muted">Storage backend aktif:</p>
-        <p className="font-medium">
-          {persistence ? driverLabel(persistence.driver) : "memuat…"}
-          {persistence?.driver === "vercel-supabase" && " ✓"}
-        </p>
-        {persistence && persistence.driver !== "vercel-supabase" && (
-          <p className="text-xs text-amber-500">
-            {hasSupabaseEnv
-              ? "Supabase terdeteksi di env — backend akan aktif saat cold start berikutnya."
-              : "Paste blok Supabase di bawah lalu Save untuk mengaktifkan persistence."}
+        <p className="font-medium">{persistence ? driverLabel(persistence.driver) : "memuat…"}</p>
+        {persistence?.driver === "vercel-supabase" && persistence.supabaseWriteOk === true && (
+          <p className="text-xs text-green-500">✓ Supabase aktif — DB dipersist permanen (survive cold start).</p>
+        )}
+        {persistence?.driver === "vercel-supabase" && persistence.supabaseWriteOk === false && (
+          <p className="text-xs text-red-500">
+            ✗ Write ke Supabase GAGAL: {persistence.supabaseError || "unknown"} — data hanya di memory, hilang saat cold start.
+          </p>
+        )}
+        {persistence?.driver === "vercel-supabase" && persistence.supabaseWriteOk == null && (
+          <p className="text-xs text-amber-500">Mengecek write Supabase…</p>
+        )}
+        {persistence?.driver === "vercel-in-memory" && (
+          <p className="text-xs text-red-500">
+            ✗ Vercel in-memory (ephemeral) — config HILANG tiap cold start/deploy. Set env Supabase (lihat bawah).
+          </p>
+        )}
+        {persistence?.driver === "vercel-kv" && (
+          <p className="text-xs text-green-500">✓ Vercel KV aktif — DB dipersist via KV.</p>
+        )}
+        {!persistence?.supabaseConfigured && persistence?.driver !== "vercel-supabase" && (
+          <p className="text-xs text-amber-500 font-semibold">
+            ⚠️ Supabase BELUM aktif di cold start. Set NEXT_PUBLIC_DIKA_SUPABASE_URL + DIKA_SUPABASE_SERVICE_ROLE_KEY di Vercel project env, kalau tidak config HILANG setiap cold start.
           </p>
         )}
       </div>
