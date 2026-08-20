@@ -47,7 +47,8 @@ export default function SmartIpPage() {
     fetch("/api/settings")
       .then((r) => r.json())
       .then((d) => {
-        const s = d?.settings || {};
+        // /api/settings GET returns a FLAT settings object (no `settings` wrapper)
+        const s = d || {};
         if (s.smartIpTargetUrl) setTargetUrl(s.smartIpTargetUrl);
         if (Array.isArray(s.smartIpRegions) && s.smartIpRegions.length) {
           setSelectedRegions(s.smartIpRegions);
