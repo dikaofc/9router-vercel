@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const REGIONS = [
   { id: "iad1", name: "US East", flag: "🇺🇸" },
@@ -41,6 +41,51 @@ export default function SmartIpPage() {
       .catch(() => setCurrentIp("Unable to detect"));
   }, []);
 
+  // Load persisted Smart IP config. The Vercel token is stored server-side and
+  // redacted from the response, so only targetUrl + regions come back to prefill.
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        const s = d?.settings || {};
+        if (s.smartIpTargetUrl) setTargetUrl(s.smartIpTargetUrl);
+        if (Array.isArray(s.smartIpRegions) && s.smartIpRegions.length) {
+          setSelectedRegions(s.smartIpRegions);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveConfig = useCallback(
+    async (extra = {}) => {
+      try {
+        await fetch("/api/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            smartIpTargetUrl: targetUrl,
+            smartIpRegions: selectedRegions,
+            ...extra,
+          }),
+        });
+      } catch {}
+    },
+    [targetUrl, selectedRegions],
+  );
+
+  // Persist target URL + regions (debounced) so a refresh keeps them.
+  // Skip the initial mount run so a failed/empty settings load can't clobber
+  // already-persisted values.
+  const skipFirstSave = useRef(true);
+  useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
+    const t = setTimeout(() => saveConfig(), 800);
+    return () => clearTimeout(t);
+  }, [saveConfig]);
+
   const toggleRegion = (id) => {
     setSelectedRegions((prev) =>
       prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
@@ -48,7 +93,7 @@ export default function SmartIpPage() {
   };
 
   const handleDeploy = async () => {
-    if (!vercelToken || !targetUrl || selectedRegions.length === 0) return;
+    if (!targetUrl || selectedRegions.length === 0) return;
     setDeploying(true);
     setDeployLog([{ text: `Deploying relays to ${selectedRegions.length} regions...`, type: "info" }]);
 
@@ -74,6 +119,10 @@ export default function SmartIpPage() {
       if (data.error && !data.results) {
         setDeployLog((prev) => [...prev, { text: `❌ Deploy failed: ${data.error}`, type: "error" }]);
       }
+      // Persist config; the token is saved server-side (redacted from GET) so
+      // future deploys fall back to it without re-entering.
+      const extra = vercelToken && vercelToken.trim() ? { smartIpVercelToken: vercelToken } : {};
+      await saveConfig(extra);
       fetchRelays();
     } catch (err) {
       setDeployLog((prev) => [...prev, { text: `❌ Deploy failed: ${err.message}`, type: "error" }]);
@@ -128,6 +177,7 @@ export default function SmartIpPage() {
               onChange={(e) => setVercelToken(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary transition-colors font-mono"
             />
+            <p className="text-[10px] text-text-muted mt-1">Disimpan di server setelah deploy pertama — tidak perlu diisi ulang saat refresh.</p>
           </div>
 
           <div>
@@ -163,7 +213,7 @@ export default function SmartIpPage() {
 
           <button
             onClick={handleDeploy}
-            disabled={deploying || !vercelToken || !targetUrl || selectedRegions.length === 0}
+            disabled={deploying || !targetUrl || selectedRegions.length === 0}
             className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {deploying ? (
