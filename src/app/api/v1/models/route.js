@@ -554,6 +554,8 @@ export async function OPTIONS() {
   });
 }
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /v1/models - OpenAI compatible models list (LLM/chat models only by default).
  * For other capabilities use /v1/models/{kind} (image, tts, stt, embedding, image-to-text, web).
@@ -562,6 +564,8 @@ export async function GET(request) {
   try {
     // Detect cross-instance recursive /models fetch (another 9router fetching our /models)
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
+    // Explicit: serves live DB state, never statically cached
+    void request;
     const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },
