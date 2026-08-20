@@ -3,5 +3,6 @@ import EndpointPageClient from "./EndpointPageClient";
 
 export default async function EndpointPage() {
   const machineId = await getMachineId();
-  return <EndpointPageClient machineId={machineId} />;
+  const isVercel = !!process.env.VERCEL;
+  return <EndpointPageClient machineId={machineId} isVercel={isVercel} />;
 }

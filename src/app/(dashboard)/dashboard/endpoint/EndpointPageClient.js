@@ -17,9 +17,8 @@ import EndpointRow from "./components/EndpointRow";
 import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
-const IS_VERCEL = typeof process !== "undefined" && !!process.env?.VERCEL;
-
-export default function APIPageClient({ machineId }) {
+export default function APIPageClient({ machineId, isVercel = false }) {
+  const IS_VERCEL = isVercel;
   const [keys, setKeys] = useState([]);
   const [persistent, setPersistent] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1329,4 +1328,5 @@ export default function APIPageClient({ machineId }) {
 
 APIPageClient.propTypes = {
   machineId: PropTypes.string.isRequired,
+  isVercel: PropTypes.bool,
 };
