@@ -14,12 +14,39 @@ function driverLabel(driver) {
   }
 }
 
+function EnvVarRow({ name, hint, value, onStatus }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value || "");
+      setCopied(true);
+      onStatus({ type: "success", message: `Copied ${name} — tempel di Vercel.` });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      onStatus({ type: "error", message: "Gagal menyalin. Salin manual dari blok paste di atas." });
+    }
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <code className="flex-1 break-all font-mono text-[11px] text-text-main">{name}</code>
+        <Button type="button" variant="outline" size="sm" icon={copied ? "check" : "content_copy"} onClick={copy}>
+          Copy
+        </Button>
+      </div>
+      {hint && <p className="text-[11px] text-text-muted">{hint}</p>}
+    </div>
+  );
+}
+
 export default function SupabaseSettingsCard() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState({ type: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [persistence, setPersistence] = useState(null);
   const [hasSupabaseEnv, setHasSupabaseEnv] = useState(false);
+  const [copyStatus, setCopyStatus] = useState({ type: "", message: "" });
+  const [envValues, setEnvValues] = useState({});
 
   async function reloadStatus() {
     try {
@@ -30,6 +57,16 @@ export default function SupabaseSettingsCard() {
         setHasSupabaseEnv(data.persistence.supabaseConfigured === true);
       }
     } catch {}
+  }
+
+  // Extract keys for the Copy buttons from what the user pastes (without storing them in state longer than needed).
+  function extractEnvValues() {
+    const parsed = parseEnvBlock(text);
+    const out = {};
+    for (const key of ["NEXT_PUBLIC_DIKA_SUPABASE_URL", "DIKA_SUPABASE_SERVICE_ROLE_KEY", "DIKA_SUPABASE_ANON_KEY"]) {
+      if (parsed[key]) out[key] = parsed[key];
+    }
+    return out;
   }
 
   useEffect(() => {
@@ -56,6 +93,7 @@ export default function SupabaseSettingsCard() {
         setStatus({ type: "error", message: data.error || "Save failed" });
         return;
       }
+      setEnvValues(extractEnvValues());
       await reloadStatus();
       setStatus({
         type: "success",
@@ -127,6 +165,33 @@ export default function SupabaseSettingsCard() {
           >
             {status.message}
           </span>
+        )}
+      </div>
+
+      <div className="mt-4 p-3 rounded-lg border border-border bg-bg flex flex-col gap-2 text-xs sm:text-sm">
+        <p className="font-semibold text-text-main">Agar permanen di Vercel (wajib sekali saja)</p>
+        <p className="text-text-muted">
+          Paste di atas hanya mempengaruhi instance yang sedang hidup. Agar config bertahan di tiap
+          cold start / redeploy, pasang 2 variabel ini di{" "}
+          <span className="text-text-main">Vercel → Your Project → Settings → Environment Variables</span>:
+          gunakan tombol Copy di bawah, tempel di value, lalu <b>Redeploy</b>.
+        </p>
+        <div className="flex flex-col gap-1.5">
+          <EnvVarRow
+            name="NEXT_PUBLIC_DIKA_SUPABASE_URL"
+            hint="https://xxxx.supabase.co (bukan rahasia, public aman)"
+            value={envValues.NEXT_PUBLIC_DIKA_SUPABASE_URL}
+            onStatus={setCopyStatus}
+          />
+          <EnvVarRow
+            name="DIKA_SUPABASE_SERVICE_ROLE_KEY"
+            hint="Paling aman. Kalau tidak punya, gunakan DIKA_SUPABASE_ANON_KEY sebagai pengganti."
+            value={envValues.DIKA_SUPABASE_SERVICE_ROLE_KEY || envValues.DIKA_SUPABASE_ANON_KEY}
+            onStatus={setCopyStatus}
+          />
+        </div>
+        {copyStatus.message && (
+          <p className={`text-xs ${copyStatus.type === "error" ? "text-red-500" : "text-green-500"}`}>{copyStatus.message}</p>
         )}
       </div>
     </Card>
