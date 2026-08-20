@@ -6,12 +6,10 @@
   "outputDirectory": ".next",
   "functions": {
     "src/app/api/**/**.js": {
-      "maxDuration": 30,
-      "memory": 1024
+      "maxDuration": 30
     },
     "src/app/api/v1/**/**.js": {
-      "maxDuration": 60,
-      "memory": 1024
+      "maxDuration": 60
     }
   },
   "env": {},
