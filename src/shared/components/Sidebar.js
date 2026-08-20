@@ -116,23 +116,25 @@ export default function Sidebar({ open, onClose }) {
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop (mobile sheet only — desktop sidebar is always visible) */}
       {open && (
         <div
-          className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm transition-opacity lg:hidden"
           onClick={onClose}
         />
       )}
 
-      {/* Sheet Drawer */}
+      {/* Sidebar: permanent rail on lg+, slide-in sheet on mobile */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-[70] w-[280px] bg-surface border-r border-border flex flex-col transition-transform duration-300 ease-out",
+          "flex flex-col bg-surface border-r border-border",
+          "fixed inset-y-0 left-0 z-[70] w-[280px] transition-transform duration-300 ease-out",
+          "lg:static lg:h-full lg:w-[264px] lg:shrink-0 lg:translate-x-0 lg:transition-none",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 lg:pt-5">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-sm">
               <span className="material-symbols-outlined text-white text-[18px]">hub</span>
@@ -142,7 +144,7 @@ export default function Sidebar({ open, onClose }) {
               <span className="text-[10px] text-text-muted">v{APP_CONFIG.version}</span>
             </div>
           </div>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:bg-surface-2 transition-colors">
+          <button onClick={onClose} className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:bg-surface-2 transition-colors">
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>

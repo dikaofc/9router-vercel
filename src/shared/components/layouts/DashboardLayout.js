@@ -38,7 +38,7 @@ export default function DashboardLayout({ children }) {
   const removeNotification = useNotificationStore((state) => state.removeNotification);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-bg">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg">
       {/* Toast Notifications */}
       <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2">
         {notifications.map((n) => {
@@ -70,19 +70,19 @@ export default function DashboardLayout({ children }) {
         })}
       </div>
 
-      {/* iOS Sheet Sidebar */}
+      {/* Sidebar: permanent rail on desktop (lg+), slide-in sheet on mobile */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content */}
-      <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate">
+      <main className="relative isolate flex h-full min-w-0 flex-1 flex-col transition-colors duration-300">
         {/* Faint grid background */}
-        <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
+        <div className="landing-grid -z-10 pointer-events-none absolute inset-0" aria-hidden="true" />
         <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
         <div
           data-scroll-container
-          className={`flex-1 overflow-y-auto custom-scrollbar ${pathname === "/dashboard/basic-chat" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}
+          className={`custom-scrollbar flex-1 overflow-y-auto ${pathname === "/dashboard/basic-chat" ? "" : "p-4 sm:p-6 lg:p-8"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}
         >
-          <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}>{children}</div>
+          <div className={pathname === "/dashboard/basic-chat" ? "dashboard-content flex h-full w-full flex-1 flex-col" : "dashboard-content mx-auto w-full max-w-7xl"}>{children}</div>
         </div>
       </main>
     </div>
