@@ -3,6 +3,8 @@
 //                  → read-numbered → dedup-log → smart-truncate → null
 import { DETECT_WINDOW, READ_NUMBERED_MIN_HIT_RATIO, SMART_TRUNCATE_MIN_LINES } from "./constants.js";
 import { gitDiff } from "./filters/gitDiff.js";
+import { jsonMinify } from "./filters/jsonMinify.js";
+import { stackTrace } from "./filters/stackTrace.js";
 import { gitStatus } from "./filters/gitStatus.js";
 import { gitLog } from "./filters/gitLog.js";
 import { buildOutput } from "./filters/buildOutput.js";
@@ -14,6 +16,7 @@ import { tree } from "./filters/tree.js";
 import { smartTruncate } from "./filters/smartTruncate.js";
 import { readNumbered, READ_NUMBERED_LINE_RE } from "./filters/readNumbered.js";
 import { searchList, SEARCH_LIST_HEADER_RE } from "./filters/searchList.js";
+import { urlCollapse, looksLikeUrlList } from "./filters/urlCollapse.js";
 
 const RE_GIT_DIFF = /^diff --git /m;
 const RE_GIT_DIFF_HUNK = /^@@ /m;
@@ -35,6 +38,10 @@ export function autoDetectFilter(text) {
 
   // Build output BEFORE porcelain check: prevents cargo "Compiling" misdetection as git-status
   if (RE_BUILD_OUTPUT.test(head)) return buildOutput;
+
+  // Stack traces (crashes / panics / exceptions) — keep root cause + key frames.
+  // Checked before generic logs so a crash dump isn't treated as plain log noise.
+  if (looksLikeStackTrace(head)) return stackTrace;
 
   if (isMostlyPorcelain(head)) return gitStatus;
 
@@ -62,6 +69,14 @@ export function autoDetectFilter(text) {
     return readNumbered;
   }
 
+  // JSON payloads (API responses, curl/jq output, config reads) — the most
+  // common tool_result today. Lossless minify, structurally sampled if huge.
+  if (looksLikeJson(text)) return jsonMinify;
+
+  // Long URL/endpoint lists (curl listings, sitemaps, batch endpoint outputs).
+  // Collapse to a unique normalized set — keeps every distinct origin+path.
+  if (looksLikeUrlList(text)) return urlCollapse;
+
   // Fallback: dedupLog for generic multi-line noise with duplicates
   if (nonEmpty.length >= 5) return dedupLog;
 
@@ -69,6 +84,27 @@ export function autoDetectFilter(text) {
   if (text.split("\n").length >= SMART_TRUNCATE_MIN_LINES) return smartTruncate;
 
   return null;
+}
+
+// JSON object/array at the top level, with at least one quote or colon in the
+// peek window (so plain bullet lists / prose starting with "[" don't match).
+// The filter self-validates, so a loose match here is safe.
+function looksLikeJson(text) {
+  const t = text.trimStart();
+  if (t[0] !== "{" && t[0] !== "[") return false;
+  const window = t.slice(0, 2048);
+  return window.includes('"') || window.includes(":");
+}
+
+// Strong signals for a crash / panic / exception dump.
+function looksLikeStackTrace(head) {
+  if (/^Traceback \(most recent call last\):/i.test(head)) return true;
+  if (/^\s*panicked at /i.test(head) || /^\s*panic:\s/i.test(head)) return true;
+  if (/^\s*at\s+.+\s+\(.+:\d+:\d+\)\s*$/m.test(head)) return true;
+  if (/^\s*File ".+?", line \d+, in /m.test(head)) return true;
+  if (/^\s*\d+:\s+[\w:]+/m.test(head)) return true; // rust backtrace frames
+  // "ErrorType: message" / "ExceptionType: message" (not "Error rate: 0.5")
+  return /(^|\n)\s*(Uncaught\s+)?[\w.]*(Error|Exception|Panic|Fault)\b\s*[:\n]/i.test(head);
 }
 
 function isGrepLine(line) {

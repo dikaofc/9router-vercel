@@ -43,6 +43,29 @@ export const SMART_TRUNCATE_MIN_LINES = 250;   // only kick in above this
 // readNumbered (files with "  N|content" lines, e.g. Cursor read_file)
 export const READ_NUMBERED_MIN_HIT_RATIO = 0.7;
 
+// --- JSON-aware compression (smart: lossless minify + structural sampling) ---
+// Most tool results today are JSON (API responses, curl/jq output, config reads).
+// Whitespace-stripping is lossless (meaning preserved → model stays smart),
+// and we only structurally sample when the payload is still large.
+export const JSON_VALIDATE_MAX = 256 * 1024;   // JSON.parse-validate result up to this size
+export const JSON_COMPACT_THRESHOLD = 16 * 1024; // minified still bigger → structural compaction
+export const JSON_COMPACT_MAX = 2 * 1024 * 1024;  // parse-walk only below this (else skip compaction)
+export const JSON_ARRAY_HEAD = 8;               // keep first N items of big arrays
+export const JSON_ARRAY_TAIL = 4;               // keep last N items
+export const JSON_ARRAY_MIN = 40;               // arrays longer than this get sampled
+export const JSON_OBJ_MAX_KEYS = 80;            // objects with more keys get sampled
+export const JSON_OBJ_SHOW = 50;
+
+// --- Stack-trace compression (smart: keep root cause + key frames) ---
+export const STACK_TRACE_TOTAL_FRAMES_MAX = 24; // frames kept across all chains
+export const STACK_TRACE_NOTE_MAX = 6;           // `= note:`/`warning:` lines kept
+
+// --- High-signal line detection (generic truncation stays useful, anti-bingung) ---
+// Keeps error/warn/fail/panic/exception/... lines when truncating the middle so
+// the model never loses the actual problem or answer.
+export const SIGNAL_LINE_RE = /(^|\s)(error|errors|warn|warning|fail|failed|failure|panic|panicked|exception|fatal|crash|crashed|abort|aborted|denied|refused|timeout|timed out|segfault|traceback|undefined|not defined|not found|cannot|unable to|reject|rejected|thrown|threw|❌|✗|⛔)/i;
+export const SMART_TRUNCATE_MID_KEEP = 16;       // high-signal middle lines kept
+
 // Filter name strings (Rust parity + JS extras)
 export const FILTERS = {
   GIT_DIFF: "git-diff",
@@ -56,5 +79,8 @@ export const FILTERS = {
   SMART_TRUNCATE: "smart-truncate",
   READ_NUMBERED: "read-numbered",
   SEARCH_LIST: "search-list",
-  BUILD_OUTPUT: "build-output"
+  BUILD_OUTPUT: "build-output",
+  JSON_MINIFY: "json-minify",
+  STACK_TRACE: "stack-trace",
+  URL_COLLAPSE: "url-collapse"
 };

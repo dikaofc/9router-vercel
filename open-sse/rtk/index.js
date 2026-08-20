@@ -127,22 +127,21 @@ function compressText(text, stats, shape) {
   }
 
   const fn = autoDetectFilter(text);
-  if (!fn) {
-    stats.bytesAfter += bytesIn;
-    return text;
+  if (fn) {
+    const out = safeApply(fn, text);
+    // Safety: never return empty, never grow the input
+    if (out && out.length > 0 && out.length < bytesIn) {
+      stats.bytesAfter += out.length;
+      stats.hits.push({ shape, filter: fn.filterName || fn.name, saved: bytesIn - out.length });
+      return out;
+    }
   }
 
-  const out = safeApply(fn, text);
-
-  // Safety: never return empty, never grow the input
-  if (!out || out.length === 0 || out.length >= bytesIn) {
-    stats.bytesAfter += bytesIn;
-    return text;
-  }
-
-  stats.bytesAfter += out.length;
-  stats.hits.push({ shape, filter: fn.filterName || fn.name, saved: bytesIn - out.length });
-  return out;
+  // autoDetectFilter already routes to json-minify / stack-trace / url-collapse /
+  // dedup-log / smart-truncate as appropriate; anything it declined is left
+  // unchanged (fail-open, never grow the input).
+  stats.bytesAfter += bytesIn;
+  return text;
 }
 
 // Convenience: format a log line from stats
