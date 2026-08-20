@@ -3,6 +3,7 @@
  */
 
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
+import { classifyError } from "../ratelimit/index.js";
 import { unavailableResponse } from "../utils/error.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
@@ -331,8 +332,12 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         try { errorText = JSON.stringify(errorText); } catch { errorText = String(errorText); }
       }
 
-      // Check if should fallback to next model
-      const { shouldFallback, cooldownMs } = checkFallbackError(result.status, errorText);
+      // Smart fallback decision: 400/403/404 are request/model problems → stop
+      // (no point retrying other models). 429/5xx/401 are provider problems →
+      // fall through to the next model in the combo.
+      const { action } = classifyError({ status: result.status, errorText });
+      const shouldFallback = action !== "drop";
+      const { cooldownMs } = shouldFallback ? checkFallbackError(result.status, errorText, 0) : { cooldownMs: 0 };
 
       if (!shouldFallback) {
         log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });

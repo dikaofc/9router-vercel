@@ -2,6 +2,7 @@ import { getProviderConnections, validateApiKey, updateProviderConnection, getSe
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
+import { rateLimitManager } from "open-sse/ratelimit/index.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import * as log from "../utils/logger.js";
 
@@ -53,6 +54,24 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         pickedId = pickProxyPoolId(poolIds, strategy, providerId);
       }
       const resolvedProxy = await resolveConnectionProxyConfig({ proxyPoolId: pickedId || "" });
+
+      // Smart rate-limit: if this free provider (or specific model) is in a
+      // cooldown (just got 429/5xx upstream), tell the client to back off with
+      // a clean Retry-After instead of hammering the shared endpoint. The
+      // cooldown is in-memory (per instance) and re-learned on cold start.
+      const pb = rateLimitManager.isProviderBlocked(providerId, model);
+      if (pb.blocked) {
+        const retryAt = new Date(Date.now() + pb.retryAfterMs).toISOString();
+        log.warn("AUTH", `${providerId} | free provider cooldown (${model || "all"}) ~${Math.round(pb.retryAfterMs / 1000)}s`);
+        return {
+          allRateLimited: true,
+          retryAfter: retryAt,
+          retryAfterHuman: formatRetryAfter(retryAt),
+          lastError: "provider rate-limited (cooldown active)",
+          lastErrorCode: 429,
+        };
+      }
+
       return {
         id: "noauth",
         connectionName: "Public",
@@ -76,10 +95,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       return null;
     }
 
-    // Filter out model-locked and excluded connections
+    // Filter out model-locked, excluded, and rate-limit / circuit-breaker blocked connections
     const availableConnections = connections.filter(c => {
       if (excludeSet.has(c.id)) return false;
       if (isModelLockActive(c, model)) return false;
+      // Skip accounts whose circuit breaker is OPEN or that are in a cooldown
+      // (provider-level / provider+model cooldown, or per-account per-model lock).
+      if (rateLimitManager.isConnBlocked(c, { provider: providerId, model })) return false;
       return true;
     });
 
@@ -217,7 +239,22 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
  * @returns {{ shouldFallback: boolean, cooldownMs: number }}
  */
 export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null) {
-  if (!connectionId || connectionId === "noauth") return { shouldFallback: false, cooldownMs: 0 };
+  if (!connectionId) return { shouldFallback: false, cooldownMs: 0 };
+
+  // No-auth / free providers have no DB connection record. Cool down at the
+  // provider+model level in memory so we stop hammering the shared endpoint
+  // (and hand clients a Retry-After) instead of retry-looping on 429s.
+  if (connectionId === "noauth") {
+    const now = Date.now();
+    const { shouldFallback, cooldownMs } = checkFallbackError(status, errorText, 0);
+    if (shouldFallback && provider) {
+      try {
+        rateLimitManager.markFailure({ provider, conn: null, model, status, errorText, resetsAtMs, now });
+      } catch (e) { log.warn("AUTH", "rateLimitManager.markFailure(noauth) failed", e); }
+    }
+    return { shouldFallback, cooldownMs };
+  }
+
   const connections = await getProviderConnections({ provider });
   const conn = connections.find(c => c.id === connectionId);
   const backoffLevel = conn?.backoffLevel || 0;
@@ -240,11 +277,24 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   }
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
 
+  // Record hierarchical circuit-breaker + cooldown state on the connection
+  // record (durable across serverless cold starts via the DB / KV adapter).
+  const mgrModel = githubResetAtMs ? null : model;
+  const mgrUpdates = {};
+  try {
+    const rl = rateLimitManager.markFailure({
+      provider, conn, model: mgrModel, status, errorText,
+      resetsAtMs: githubResetAtMs || resetsAtMs, now: Date.now(),
+    });
+    Object.assign(mgrUpdates, rl.updates);
+  } catch (e) { log.warn("AUTH", "rateLimitManager.markFailure failed", e); }
+
   const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Provider error";
-  const lockUpdate = buildModelLockUpdate(githubResetAtMs ? null : model, cooldownMs);
+  const lockUpdate = buildModelLockUpdate(mgrModel, cooldownMs);
 
   await updateProviderConnection(connectionId, {
     ...lockUpdate,
+    ...mgrUpdates,
     testStatus: "unavailable",
     lastError: reason,
     errorCode: status,
@@ -278,7 +328,14 @@ export async function clearAccountError(connectionId, currentConnection, model =
   const now = Date.now();
   const allLockKeys = Object.keys(conn).filter(k => k.startsWith("modelLock_"));
 
-  if (!conn.testStatus && !conn.lastError && allLockKeys.length === 0) return;
+  // Heal circuit breaker + clear provider-level cooldown on a successful request.
+  let mgrSuccess = {};
+  try {
+    const rl = rateLimitManager.markSuccess({ provider: conn.provider || null, conn, model, now });
+    if (rl && rl.updates) mgrSuccess = rl.updates;
+  } catch (e) { log.warn("AUTH", "rateLimitManager.markSuccess failed", e); }
+
+  if (!conn.testStatus && !conn.lastError && allLockKeys.length === 0 && Object.keys(mgrSuccess).length === 0) return;
 
   // Keys to clear: current model's lock + all expired locks
   const keysToClear = allLockKeys.filter(k => {
@@ -309,6 +366,9 @@ export async function clearAccountError(connectionId, currentConnection, model =
       backoffLevel: 0
     });
   }
+
+  // Merge breaker / provider-cooldown healing (additive; never re-locks).
+  Object.assign(clearObj, mgrSuccess);
 
   await updateProviderConnection(connectionId, clearObj);
 }
