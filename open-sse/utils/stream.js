@@ -464,6 +464,13 @@ export function createSSEStream(options = {}) {
           }
         }
 
+        // If upstream EOF'd without a finish_reason (e.g. pi.dev sends reasoning
+        // deltas then closes), force a terminal stop so the translator emits the
+        // correct final chunk for the client's source format. OpenAI-SDK clients
+        // otherwise throw "stream ended without finish_reason" and abort — which
+        // also leaves usage at 0. Only when upstream sent no finish at all.
+        if (!state.finishReason) state.finishReason = "stop";
+
         const flushed = translateResponse(targetFormat, sourceFormat, null, state);
 
         if (flushed?._openaiIntermediate) {

@@ -30,3 +30,13 @@ export const PONYTAIL_LEVELS = [
   { id: "full", label: "Full", desc: "Ladder enforced: stdlib/native first" },
   { id: "ultra", label: "Ultra", desc: "YAGNI extremist, deletion first" },
 ];
+
+export const CONTEXT_SAVER_LEVELS = [
+  { id: "light", label: "Light", desc: "Keep prior decisions, skip recaps" },
+  { id: "full", label: "Full", desc: "Cumulative memory: retain facts, compress context" },
+];
+
+export const FAST_CODE_LEVELS = [
+  { id: "light", label: "Light", desc: "Shortest correct code, skip boilerplate" },
+  { id: "full", label: "Full", desc: "Stdlib-first, runnable, no unrequested abstractions" },
+];

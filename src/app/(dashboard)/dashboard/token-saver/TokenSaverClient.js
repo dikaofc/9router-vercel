@@ -8,6 +8,8 @@ import {
   WENYAN_LOCALES,
   CAVEMAN_LEVELS,
   PONYTAIL_LEVELS,
+  CONTEXT_SAVER_LEVELS,
+  FAST_CODE_LEVELS,
 } from "../endpoint/endpointConstants";
 
 export default function TokenSaverClient() {
@@ -44,6 +46,10 @@ export default function TokenSaverClient() {
   const [cavemanLevel, setCavemanLevel] = useState("full");
   const [ponytailEnabled, setPonytailEnabled] = useState(false);
   const [ponytailLevel, setPonytailLevel] = useState("full");
+  const [contextSaverEnabled, setContextSaverEnabled] = useState(false);
+  const [contextSaverLevel, setContextSaverLevel] = useState("full");
+  const [fastCodeEnabled, setFastCodeEnabled] = useState(false);
+  const [fastCodeLevel, setFastCodeLevel] = useState("full");
   const [pxpipeEnabled, setPxpipeEnabled] = useState(false);
   const [pxpipeMinChars, setPxpipeMinChars] = useState(25000);
   const [pxpipeStatus, setPxpipeStatus] = useState({
@@ -353,6 +359,26 @@ export default function TokenSaverClient() {
     patchSetting({ ponytailLevel: level });
   };
 
+  const handleContextSaverEnabled = (value) => {
+    setContextSaverEnabled(value);
+    patchSetting({ contextSaverEnabled: value });
+  };
+
+  const handleContextSaverLevel = (level) => {
+    setContextSaverLevel(level);
+    patchSetting({ contextSaverLevel: level });
+  };
+
+  const handleFastCodeEnabled = (value) => {
+    setFastCodeEnabled(value);
+    patchSetting({ fastCodeEnabled: value });
+  };
+
+  const handleFastCodeLevel = (level) => {
+    setFastCodeLevel(level);
+    patchSetting({ fastCodeLevel: level });
+  };
+
   const refreshPxpipeStatus = useCallback(async () => {
     setPxpipeStatus((s) => ({ ...s, loading: true }));
     try {
@@ -421,6 +447,10 @@ export default function TokenSaverClient() {
           setCavemanLevel(data.cavemanLevel || "full");
           setPonytailEnabled(!!data.ponytailEnabled);
           setPonytailLevel(data.ponytailLevel || "full");
+          setContextSaverEnabled(!!data.contextSaverEnabled);
+          setContextSaverLevel(data.contextSaverLevel || "full");
+          setFastCodeEnabled(!!data.fastCodeEnabled);
+          setFastCodeLevel(data.fastCodeLevel || "full");
           setPxpipeEnabled(!!data.pxpipeEnabled);
           if (typeof data.pxpipeMinChars === "number") setPxpipeMinChars(data.pxpipeMinChars);
           refreshHeadroomStatus();
@@ -729,6 +759,89 @@ export default function TokenSaverClient() {
             <Toggle
               checked={ponytailEnabled}
               onChange={() => handlePonytailEnabled(!ponytailEnabled)}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              Context Saver{" "}
+              <span className="text-xs font-normal text-text-muted">(alias context7)</span>
+            </p>
+            <p className="text-sm text-text-muted">
+              Retain/compress conversation context across turns — cumulative working memory
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {contextSaverEnabled && (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1.5">
+                  {CONTEXT_SAVER_LEVELS.map((lvl) => (
+                    <button
+                      key={lvl.id}
+                      onClick={() => handleContextSaverLevel(lvl.id)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        contextSaverLevel === lvl.id
+                          ? "bg-primary text-white border-primary"
+                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
+                      }`}
+                      title={lvl.desc}
+                    >
+                      {lvl.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-primary">
+                  {
+                    CONTEXT_SAVER_LEVELS.find((lvl) => lvl.id === contextSaverLevel)
+                      ?.desc
+                  }
+                </p>
+              </div>
+            )}
+            <Toggle
+              checked={contextSaverEnabled}
+              onChange={() => handleContextSaverEnabled(!contextSaverEnabled)}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Fast Code</p>
+            <p className="text-sm text-text-muted">
+              Bias toward terse, production-quality code: stdlib-first, minimal boilerplate
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {fastCodeEnabled && (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1.5">
+                  {FAST_CODE_LEVELS.map((lvl) => (
+                    <button
+                      key={lvl.id}
+                      onClick={() => handleFastCodeLevel(lvl.id)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        fastCodeLevel === lvl.id
+                          ? "bg-primary text-white border-primary"
+                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
+                      }`}
+                      title={lvl.desc}
+                    >
+                      {lvl.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-primary">
+                  {
+                    FAST_CODE_LEVELS.find((lvl) => lvl.id === fastCodeLevel)
+                      ?.desc
+                  }
+                </p>
+              </div>
+            )}
+            <Toggle
+              checked={fastCodeEnabled}
+              onChange={() => handleFastCodeEnabled(!fastCodeEnabled)}
             />
           </div>
         </div>
