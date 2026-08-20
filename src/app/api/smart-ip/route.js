@@ -41,6 +41,9 @@ export default async function handler(req) {
       headers,
       body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
       duplex: "half",
+      // Cap outbound relay time so a slow/unreachable target can't hang the
+      // function until Vercel kills it with FUNCTION_INVOCATION_TIMEOUT.
+      signal: AbortSignal.timeout(20000),
     });
     return new Response(response.body, {
       status: response.status,
