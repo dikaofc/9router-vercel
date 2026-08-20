@@ -239,7 +239,7 @@ export async function createVercelAdapter() {
     db.exec(`SAVEPOINT ${sp}`);
     try {
       const result = fn();
-      db.exec(`RELEASE ${sp}`);
+      try { db.exec(`RELEASE ${sp}`); } catch {}
       scheduleSave();
       return result;
     } catch (e) {

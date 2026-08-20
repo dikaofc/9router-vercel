@@ -174,7 +174,7 @@ export async function createSupabaseAdapter() {
     db.exec(`SAVEPOINT ${sp}`);
     try {
       const result = fn();
-      db.exec(`RELEASE ${sp}`);
+      try { db.exec(`RELEASE ${sp}`); } catch {}
       persist();
       return result;
     } catch (e) {
