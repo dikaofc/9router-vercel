@@ -1,13 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, Button } from "@/shared/components";
 import { parseEnvBlock } from "@/lib/db/parseEnv";
+
+function driverLabel(driver) {
+  switch (driver) {
+    case "vercel-supabase": return "Supabase (cloud, permanent)";
+    case "vercel-kv": return "Vercel KV";
+    case "vercel-in-memory": return "Vercel in-memory (ephemeral)";
+    case "mongo": return "MongoDB";
+    default: return driver || "local sqlite";
+  }
+}
 
 export default function SupabaseSettingsCard() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState({ type: "", message: "" });
   const [loading, setLoading] = useState(false);
+  const [persistence, setPersistence] = useState(null);
+  const [hasSupabaseEnv, setHasSupabaseEnv] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.persistence) setPersistence(data.persistence);
+        setHasSupabaseEnv(data?.persistence?.supabaseConfigured === true);
+      })
+      .catch(() => {});
+  }, []);
 
   async function save() {
     setLoading(true);
@@ -47,6 +69,20 @@ export default function SupabaseSettingsCard() {
         settings survive Vercel cold starts. For guaranteed cold-start persistence also set{" "}
         <code>NEXT_PUBLIC_DIKA_SUPABASE_URL</code> + a Supabase key in your Vercel project env.
       </p>
+      <div className="text-sm mb-3 p-3 rounded-lg border border-border bg-bg flex flex-col gap-1">
+        <p className="text-text-muted">Storage backend aktif:</p>
+        <p className="font-medium">
+          {persistence ? driverLabel(persistence.driver) : "memuat…"}
+          {persistence?.driver === "vercel-supabase" && " ✓"}
+        </p>
+        {persistence && persistence.driver !== "vercel-supabase" && (
+          <p className="text-xs text-amber-500">
+            {hasSupabaseEnv
+              ? "Supabase terdeteksi di env — backend akan aktif saat cold start berikutnya."
+              : "Paste blok Supabase di bawah lalu Save untuk mengaktifkan persistence."}
+          </p>
+        )}
+      </div>
       <p className="text-xs text-amber-500 mb-3">
         ⚠️ Secrets you paste (including <code>service_role</code>) are saved in this app&apos;s
         DB (Supabase Storage, encrypted at rest) and used server-side only.

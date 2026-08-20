@@ -14,24 +14,63 @@ const SETTINGS_RESPONSE_HEADERS = {
 // Secrets must never be mass-assigned from request body (CWE-915)
 const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted"];
 
+// Storage/cloud keys must never be returned to the dashboard client in plaintext.
+// They are written to process.env at runtime and stored in the DB — redact on read.
+const SECRET_PREFIXES = ["DIKA_", "NEXT_PUBLIC_DIKA_", "MONGODB_", "KV_REST_", "UPSTASH_REDIS_REST_"];
+
+function redactSecretKey(key) {
+  for (const prefix of SECRET_PREFIXES) {
+    if (key.startsWith(prefix)) return `*`.repeat(8);
+  }
+  return false;
+}
+
+function redactSecrets(obj) {
+  const out = {};
+  for (const [key, value] of Object.entries(obj || {})) {
+    out[key] = redactSecretKey(key) || value;
+  }
+  return out;
+}
+
+async function detectPersistence() {
+  try {
+    const { getAdapter } = await import("@/lib/db/driver.js");
+    const adapter = await getAdapter();
+    const hasSupabaseEnv = !!(
+      process.env.NEXT_PUBLIC_DIKA_SUPABASE_URL &&
+      (process.env.DIKA_SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.DIKA_SUPABASE_SECRET_KEY ||
+        process.env.DIKA_SUPABASE_ANON_KEY)
+    );
+    return { driver: adapter.driver, supabaseConfigured: hasSupabaseEnv };
+  } catch {
+    return { driver: "uninitialized", supabaseConfigured: false };
+  }
+}
+
 export async function GET() {
   try {
     const settings = await getSettings();
-    const { password, oidcClientSecret, ...safeSettings } = settings;
+    const { password, oidcClientSecret, ...rest } = settings;
+    const safeSettings = redactSecrets(rest);
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
-    
+
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
-    
+
     // On Vercel, password lives in INITIAL_PASSWORD env var, not in DB
     const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
     const passwordExists = !!password || (IS_VERCEL && !!process.env.INITIAL_PASSWORD);
 
-    return NextResponse.json({ 
-      ...safeSettings, 
+    const persistence = await detectPersistence();
+
+    return NextResponse.json({
+      ...safeSettings,
       enableRequestLogs,
       enableTranslator,
-      hasPassword: passwordExists
+      hasPassword: passwordExists,
+      persistence
     }, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
     console.log("Error getting settings:", error);
@@ -133,7 +172,8 @@ export async function PATCH(request) {
         .catch((error) => console.warn("[AutoPing] settings update failed:", error.message));
     }
 
-    const { password, oidcClientSecret, ...safeSettings } = settings;
+    const { password, oidcClientSecret, ...rest } = settings;
+    const safeSettings = redactSecrets(rest);
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
