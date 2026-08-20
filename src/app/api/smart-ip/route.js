@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createProxyPool, getProxyPools } from "@/models";
+import { getSettings } from "@/lib/db/repos/settingsRepo";
+
+// Hobby serverless budget is 60s. Per-region deploy + poll run in parallel
+// (see POST), so N regions finish in ~one region's time, not N×.
+export const maxDuration = 60;
 
 const VERCEL_API = "https://api.vercel.com";
 
@@ -69,7 +74,7 @@ async function readJson(res, fallback = undefined) {
   return fallback ?? { error: { message: `HTTP ${res.status}` } };
 }
 
-async function pollDeployment(deploymentId, token, maxMs = 90000) {
+async function pollDeployment(deploymentId, token, maxMs = 55000) {
   const start = Date.now();
   while (Date.now() - start < maxMs) {
     const res = await fetch(`${VERCEL_API}/v13/deployments/${deploymentId}`, {
@@ -103,88 +108,99 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { vercelToken, regions = ["iad1", "sfo1", "cdg1", "hnd1"], targetUrl } = body;
+    let { vercelToken, regions = ["iad1", "sfo1", "cdg1", "hnd1"], targetUrl } = body;
 
-    if (!vercelToken) {
+    // Fall back to the token saved from a previous deploy. It is stored
+    // server-side and never returned to the browser, so an empty client
+    // field is acceptable on re-deploy.
+    if (!vercelToken || !vercelToken.trim()) {
+      try {
+        const s = await getSettings();
+        vercelToken = (s && s.smartIpVercelToken) || "";
+      } catch {}
+    }
+
+    if (!vercelToken || !vercelToken.trim()) {
       return NextResponse.json({ error: "Vercel API token required" }, { status: 400 });
     }
     if (!targetUrl) {
       return NextResponse.json({ error: "Target URL required (your 9Router Vercel URL)" }, { status: 400 });
     }
 
-    const results = [];
     const selectedRegions = REGIONS.filter((r) => regions.includes(r.id));
-
-    for (const region of selectedRegions) {
-      try {
-        const projectName = `smart-ip-${region.id}-${Date.now().toString(36)}`;
-
-        const deployRes = await fetch(`${VERCEL_API}/v13/deployments`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${vercelToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: projectName,
-            regions: [region.id],
-            files: [
-              { file: "api/relay.js", data: RELAY_CODE },
-              { file: "package.json", data: JSON.stringify({ name: projectName, version: "1.0.0" }) },
-              { file: "vercel.json", data: JSON.stringify({ rewrites: [{ source: "/(.*)", destination: "/api/relay" }] }) },
-            ],
-            projectSettings: { framework: null },
-            target: "production",
-          }),
-        });
-
-        if (!deployRes.ok) {
-          const err = await readJson(deployRes, {});
-          const text = err.error?.message || (typeof err === "string" ? err : JSON.stringify(err));
-          results.push({ region: region.id, error: text || `Deploy failed (HTTP ${deployRes.status})` });
-          continue;
-        }
-
-        const deployment = await deployRes.json().catch(() => null);
-        if (!deployment || !deployment.id) {
-          results.push({ region: region.id, error: "Deployment created but returned no valid response" });
-          continue;
-        }
-        const ready = await pollDeployment(deployment.id, vercelToken);
-        const relayUrl = `https://${ready.url}`;
-
-        // Disable deployment protection
-        const projectId = deployment.projectId || projectName;
-        await fetch(`${VERCEL_API}/v9/projects/${projectId}`, {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${vercelToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ ssoProtection: null }),
-        });
-
-        // Create proxy pool entry
-        const pool = await createProxyPool({
-          name: `smart-ip-${region.id}`,
-          proxyUrl: relayUrl,
-          type: "vercel",
-          noProxy: "",
-          isActive: true,
-          strictProxy: false,
-        });
-
-        results.push({
-          region: region.id,
-          regionName: region.name,
-          relayUrl,
-          poolId: pool.id,
-          status: "deployed",
-        });
-      } catch (err) {
-        results.push({ region: region.id, error: err.message });
-      }
-    }
+    // Deploy every selected region concurrently instead of sequentially, so
+    // total runtime stays under the function timeout regardless of count.
+    const results = await Promise.all(
+      selectedRegions.map((region) => deployRegion(region, vercelToken)),
+    );
 
     return NextResponse.json({ results }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+async function deployRegion(region, vercelToken) {
+  try {
+    const projectName = `smart-ip-${region.id}-${Date.now().toString(36)}`;
+
+    const deployRes = await fetch(`${VERCEL_API}/v13/deployments`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${vercelToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: projectName,
+        regions: [region.id],
+        files: [
+          { file: "api/relay.js", data: RELAY_CODE },
+          { file: "package.json", data: JSON.stringify({ name: projectName, version: "1.0.0" }) },
+          { file: "vercel.json", data: JSON.stringify({ rewrites: [{ source: "/(.*)", destination: "/api/relay" }] }) },
+        ],
+        projectSettings: { framework: null },
+        target: "production",
+      }),
+    });
+
+    if (!deployRes.ok) {
+      const err = await readJson(deployRes, {});
+      const text = err.error?.message || (typeof err === "string" ? err : JSON.stringify(err));
+      return { region: region.id, error: text || `Deploy failed (HTTP ${deployRes.status})` };
+    }
+
+    const deployment = await deployRes.json().catch(() => null);
+    if (!deployment || !deployment.id) {
+      return { region: region.id, error: "Deployment created but returned no valid response" };
+    }
+    const ready = await pollDeployment(deployment.id, vercelToken);
+    const relayUrl = `https://${ready.url}`;
+
+    // Best-effort: drop deployment protection so 9Router can call the relay.
+    const projectId = deployment.projectId || projectName;
+    await fetch(`${VERCEL_API}/v9/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${vercelToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ssoProtection: null }),
+    }).catch(() => {});
+
+    const pool = await createProxyPool({
+      name: `smart-ip-${region.id}`,
+      proxyUrl: relayUrl,
+      type: "vercel",
+      noProxy: "",
+      isActive: true,
+      strictProxy: false,
+    });
+
+    return {
+      region: region.id,
+      regionName: region.name,
+      relayUrl,
+      poolId: pool.id,
+      status: "deployed",
+    };
+  } catch (err) {
+    return { region: region.id, error: err.message };
   }
 }
