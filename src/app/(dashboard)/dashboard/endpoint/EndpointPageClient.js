@@ -915,9 +915,10 @@ export default function APIPageClient({ machineId }) {
               </Button>
             )}
           </div>
-        </div>
 
         </>)} {/* end IS_VERCEL tunnel/tailscale hide */}
+        </div>
+
         {/* Pre-enable security gate banner */}
         {isLoginUnsafe && !tunnelEnabled && !tsEnabled && (
           <div className="mt-4">
