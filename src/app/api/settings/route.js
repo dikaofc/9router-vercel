@@ -82,6 +82,27 @@ export async function PATCH(request) {
 
     const settings = await updateSettings(body);
 
+    // If Supabase connection keys were updated, apply them to the running
+    // instance's env and re-init the DB adapter so persistence takes effect
+    // without a full restart. (Vercel still needs these as project env vars
+    // for cold-start survival — see Supabase settings tab.)
+    const supabaseKeys = Object.keys(body).filter(
+      (k) => k.startsWith("DIKA_SUPABASE") || k.startsWith("NEXT_PUBLIC_DIKA_SUPABASE")
+    );
+    if (supabaseKeys.length) {
+      for (const k of supabaseKeys) {
+        if (body[k]) process.env[k] = body[k];
+      }
+      try {
+        const { resetAdapter, getAdapterSync } = await import("@/lib/db/driver.js");
+        let current = null;
+        try { current = getAdapterSync().driver; } catch {}
+        if (current !== "vercel-supabase") resetAdapter();
+      } catch (e) {
+        console.warn(`[settings] Supabase adapter re-init skipped: ${e.message}`);
+      }
+    }
+
     // Apply outbound proxy settings immediately (no restart required)
     if (
       Object.prototype.hasOwnProperty.call(body, "outboundProxyEnabled") ||

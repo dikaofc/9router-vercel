@@ -18,6 +18,19 @@ async function tryVercelAdapter() {
   }
 }
 
+async function trySupabaseAdapter() {
+  // Only relevant on Vercel / serverless where the filesystem is ephemeral.
+  if (!IS_VERCEL) return null;
+  try {
+    const { createSupabaseAdapter } = await import("./adapters/supabaseAdapter.js");
+    return await createSupabaseAdapter();
+  } catch (e) {
+    // Not configured or unreachable → fall through to KV / in-memory.
+    console.warn(`[DB] Supabase adapter unavailable: ${e.message}`);
+    return null;
+  }
+}
+
 async function tryBunSqlite() {
   // Bun runtime only — built-in, no install needed
   if (!process.versions.bun) return null;
@@ -70,8 +83,9 @@ async function initAdapter() {
   // On Vercel, skip filesystem operations entirely
   if (!IS_VERCEL) ensureDirs();
 
-  // Vercel: use in-memory adapter first (no filesystem needed)
-  let adapter = await tryVercelAdapter();
+  // Vercel: prefer Supabase (permanent, shared) → KV → in-memory fallback.
+  let adapter = await trySupabaseAdapter();
+  if (!adapter) adapter = await tryVercelAdapter();
   if (!adapter) {
     // Order per runtime:
     //   Bun:  bun:sqlite → sql.js
@@ -117,4 +131,12 @@ export async function getAdapter() {
 export function getAdapterSync() {
   if (!state.instance) throw new Error("[DB] adapter not initialized — await getAdapter() first");
   return state.instance;
+}
+
+// Drop the cached adapter so the next request re-initialises (e.g. after the
+// user pastes Supabase credentials in the dashboard). Used by /api/settings.
+export function resetAdapter() {
+  state.instance = null;
+  state.initPromise = null;
+  state.logged = false;
 }
