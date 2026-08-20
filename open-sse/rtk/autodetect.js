@@ -17,6 +17,7 @@ import { smartTruncate } from "./filters/smartTruncate.js";
 import { readNumbered, READ_NUMBERED_LINE_RE } from "./filters/readNumbered.js";
 import { searchList, SEARCH_LIST_HEADER_RE } from "./filters/searchList.js";
 import { urlCollapse, looksLikeUrlList } from "./filters/urlCollapse.js";
+import { csvTable, looksLikeCsv, looksLikeMarkdownTable } from "./filters/csvTable.js";
 
 const RE_GIT_DIFF = /^diff --git /m;
 const RE_GIT_DIFF_HUNK = /^@@ /m;
@@ -72,6 +73,9 @@ export function autoDetectFilter(text) {
   // JSON payloads (API responses, curl/jq output, config reads) — the most
   // common tool_result today. Lossless minify, structurally sampled if huge.
   if (looksLikeJson(text)) return jsonMinify;
+
+  // Large CSV / markdown tables — keep header + sample rows, drop the middle.
+  if (looksLikeCsv(text) || looksLikeMarkdownTable(text)) return csvTable;
 
   // Long URL/endpoint lists (curl listings, sitemaps, batch endpoint outputs).
   // Collapse to a unique normalized set — keeps every distinct origin+path.

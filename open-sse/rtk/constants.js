@@ -48,6 +48,7 @@ export const READ_NUMBERED_MIN_HIT_RATIO = 0.7;
 // Whitespace-stripping is lossless (meaning preserved → model stays smart),
 // and we only structurally sample when the payload is still large.
 export const JSON_VALIDATE_MAX = 256 * 1024;   // JSON.parse-validate result up to this size
+export const JSON_WALK_MIN = 4 * 1024;        // parse+walk (string truncation) above this
 export const JSON_COMPACT_THRESHOLD = 16 * 1024; // minified still bigger → structural compaction
 export const JSON_COMPACT_MAX = 2 * 1024 * 1024;  // parse-walk only below this (else skip compaction)
 export const JSON_ARRAY_HEAD = 8;               // keep first N items of big arrays
@@ -66,6 +67,17 @@ export const STACK_TRACE_NOTE_MAX = 6;           // `= note:`/`warning:` lines k
 export const SIGNAL_LINE_RE = /(^|\s)(error|errors|warn|warning|fail|failed|failure|panic|panicked|exception|fatal|crash|crashed|abort|aborted|denied|refused|timeout|timed out|segfault|traceback|undefined|not defined|not found|cannot|unable to|reject|rejected|thrown|threw|❌|✗|⛔)/i;
 export const SMART_TRUNCATE_MID_KEEP = 16;       // high-signal middle lines kept
 
+// --- Long-string / base64 truncation inside JSON (anti-goblok token sink) ---
+// A single base64 blob or 50KB string inside a tool_result wrecks token count
+// and the model can't use raw base64 anyway. Truncate with a clear note so the
+// JSON stays valid and the model still knows what was there.
+export const STRING_MAX = 1536;                   // keep first N chars of a long string value
+
+// --- CSV / markdown-table compaction ---
+export const CSV_MIN_LINES = 12;                  // only compress tables this big
+export const CSV_HEAD = 8;                        // keep first N data rows
+export const CSV_TAIL = 4;                        // keep last N data rows
+
 // Filter name strings (Rust parity + JS extras)
 export const FILTERS = {
   GIT_DIFF: "git-diff",
@@ -82,5 +94,6 @@ export const FILTERS = {
   BUILD_OUTPUT: "build-output",
   JSON_MINIFY: "json-minify",
   STACK_TRACE: "stack-trace",
-  URL_COLLAPSE: "url-collapse"
+  URL_COLLAPSE: "url-collapse",
+  CSV_TABLE: "csv-table"
 };

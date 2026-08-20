@@ -13,6 +13,7 @@ import { searchList } from "./filters/searchList.js";
 import { jsonMinify } from "./filters/jsonMinify.js";
 import { stackTrace } from "./filters/stackTrace.js";
 import { urlCollapse } from "./filters/urlCollapse.js";
+import { csvTable } from "./filters/csvTable.js";
 
 const REGISTRY = {
   [FILTERS.GIT_DIFF]: gitDiff,
@@ -28,7 +29,8 @@ const REGISTRY = {
   [FILTERS.SEARCH_LIST]: searchList,
   [FILTERS.JSON_MINIFY]: jsonMinify,
   [FILTERS.STACK_TRACE]: stackTrace,
-  [FILTERS.URL_COLLAPSE]: urlCollapse
+  [FILTERS.URL_COLLAPSE]: urlCollapse,
+  [FILTERS.CSV_TABLE]: csvTable
 };
 
 // Rust resolve_filter aliases (pipe_cmd.rs): grep|rg, find|fd

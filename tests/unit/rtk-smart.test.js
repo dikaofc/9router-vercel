@@ -5,6 +5,7 @@ import { smartTruncate } from "open-sse/rtk/filters/smartTruncate.js";
 import { autoDetectFilter } from "open-sse/rtk/autodetect.js";
 import { compressMessages } from "open-sse/rtk/index.js";
 import { urlCollapse } from "open-sse/rtk/filters/urlCollapse.js";
+import { csvTable, looksLikeCsv } from "open-sse/rtk/filters/csvTable.js";
 
 describe("jsonMinify (smart, lossless)", () => {
   it("minifies pretty JSON while staying valid and parseable", () => {
@@ -152,5 +153,71 @@ describe("compressMessages integration", () => {
     const before = body.messages[0].content;
     compressMessages(body, true);
     expect(body.messages[0].content).toBe(before);
+  });
+});
+
+describe("jsonMinify long-string / base64 truncation", () => {
+  it("truncates a huge base64 data URI into a compact note", () => {
+    const blob = "A".repeat(20000);
+    const input = JSON.stringify({ name: "img", data: `data:image/png;base64,${blob}` });
+    const out = jsonMinify(input);
+    const parsed = JSON.parse(out);
+    expect(parsed.data).toContain("data:image/png;base64,");
+    expect(parsed.data).toContain("bytes base64 omitted");
+    expect(parsed.data.length).toBeLessThan(blob.length);
+    expect(out.length).toBeLessThan(input.length);
+  });
+
+  it("truncates an over-long plain string value with a note", () => {
+    const long = "x".repeat(5000);
+    const input = JSON.stringify({ note: long });
+    const out = jsonMinify(input);
+    const parsed = JSON.parse(out);
+    expect(parsed.note).toContain("(+");
+    expect(parsed.note.length).toBeLessThan(long.length);
+  });
+
+  it("keeps short strings intact (lossless)", () => {
+    const input = JSON.stringify({ a: "short value", b: "another" });
+    expect(jsonMinify(input)).toBe(input);
+  });
+});
+
+describe("csvTable (large table compaction)", () => {
+  const buildCsv = (rows) => [
+    "id,name,score",
+    ...Array.from({ length: rows }, (_, i) => `${i},user${i},${i * 7}`),
+  ].join("\n");
+
+  it("keeps header + sample rows, drops the middle", () => {
+    const csv = buildCsv(200);
+    const out = csvTable(csv);
+    expect(out).toContain("id,name,score");
+    expect(out).toContain("+189 rows"); // 201 total lines − 8 head − 4 tail = 189 dropped
+    expect(out).toContain("199,user199"); // last row kept
+    expect(out.length).toBeLessThan(csv.length);
+  });
+
+  it("routes CSV to csv-table", () => {
+    expect(autoDetectFilter(buildCsv(200))?.filterName).toBe("csv-table");
+  });
+
+  it("routes a markdown table to csv-table", () => {
+    const md = [
+      "| col | val |",
+      "| --- | --- |",
+      ...Array.from({ length: 50 }, (_, i) => `| a${i} | b${i} |`),
+    ].join("\n");
+    expect(autoDetectFilter(md)?.filterName).toBe("csv-table");
+  });
+
+  it("does not misread source code as CSV", () => {
+    const code = Array.from({ length: 20 }, (_, i) => `const x${i} = fn(a, b, c);`).join("\n");
+    expect(looksLikeCsv(code)).toBe(false);
+  });
+
+  it("passes through small tables unchanged", () => {
+    const small = "a,b,c\n1,2,3\n4,5,6";
+    expect(csvTable(small)).toBe(small);
   });
 });
