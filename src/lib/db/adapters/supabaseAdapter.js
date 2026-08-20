@@ -269,7 +269,15 @@ export async function createSupabaseAdapter() {
   // invisible to instance B until B's cache expires → config "reverts to
   // default". We re-pull the blob (conditional GET, cheap 304) before each
   // request so every instance converges on the latest write.
-  const SYNC_TTL_MS = 2000;
+  // Re-sync BEFORE every request (TTL 0 = always pull latest). Many Vercel
+  // instances share one blob; each mutation calls persist() which uploads the
+  // ENTIRE in-memory db. With any non-zero TTL, a warm instance whose in-memory
+  // db is stale (loaded before a settings save) can persist that stale db and
+  // clobber another instance's save — so every config change reverts to default
+  // within the TTL window (made worse by constant streaming/usage traffic).
+  // Always pulling latest before a mutation keeps the uploaded blob current.
+  // Cheap: conditional GET returns 304 when unchanged.
+  const SYNC_TTL_MS = 0;
   async function syncRemote(force = false) {
     if (adapter._failed || adapter._readonly || !adapter._sup) return;
     const now = Date.now();
