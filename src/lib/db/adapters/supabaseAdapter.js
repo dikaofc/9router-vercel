@@ -7,9 +7,11 @@
  * If Supabase is unconfigured it throws (caller falls through to the next
  * adapter). If a write fails (network error / quota exceeded / "penuh"), it
  * degrades gracefully to ephemeral in-memory for the rest of the instance
- * instead of throwing on every mutation.
+ * instead of throwing on every mutation. Reads use fetch; writes use a
+ * synchronous curl so they finish before Vercel freezes the lambda.
  */
 import initSqlJs from "sql.js";
+import { execFileSync } from "node:child_process";
 import { PRAGMA_SQL } from "../schema.js";
 
 let SQL = null;
@@ -67,24 +69,23 @@ async function sbRead(sup) {
   return new Uint8Array(buf);
 }
 
-async function sbWrite(sup, bytes) {
-  const res = await fetch(
-    `${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}?upsert=true`,
-    {
-      method: "POST",
-      headers: {
-        apikey: sup.key,
-        Authorization: `Bearer ${sup.key}`,
-        "Content-Type": "application/octet-stream",
-        "x-upsert": "true",
-      },
-      body: bytes,
-    }
+// Synchronous write (curl, like the KV adapter). Must be sync: on Vercel a
+// fire-and-forget async fetch is frozen the moment the response is sent, so the
+// blob never reaches Supabase and the key is lost on the next cold start.
+function sbWriteSync(sup, bytes) {
+  execFileSync(
+    "curl",
+    [
+      "-s", "--max-time", "15", "-X", "POST",
+      "-H", `Authorization: Bearer ${sup.key}`,
+      "-H", `apikey: ${sup.key}`,
+      "-H", "Content-Type: application/octet-stream",
+      "-H", "x-upsert: true",
+      "--data-binary", "@-",
+      `${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}?upsert=true`,
+    ],
+    { input: Buffer.from(bytes), stdio: ["pipe", "ignore", "ignore"] }
   );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Supabase upload failed (${res.status}): ${txt.slice(0, 200)}`);
-  }
 }
 
 export async function createSupabaseAdapter() {
@@ -128,16 +129,18 @@ export async function createSupabaseAdapter() {
     raw: db,
   };
 
-  // Fire-and-forget: keep the adapter interface synchronous (called after every
-  // mutation). On failure, mark _failed so we stop hammering Supabase and just
-  // stay in-memory for the rest of this instance's life.
+  // Synchronous (curl) so the write completes before the serverless function
+  // returns — see sbWriteSync. On failure, mark _failed so we stop hammering
+  // Supabase and just stay in-memory for the rest of this instance's life.
   function persist() {
     if (adapter._failed || adapter._readonly || adapter._seeding || !adapter._sup) return;
-    sbWrite(adapter._sup, db.export()).catch((e) => {
+    try {
+      sbWriteSync(adapter._sup, db.export());
+    } catch (e) {
       adapter._failed = true;
       adapter._lastError = e.message;
       console.warn(`[DB/Supabase] persist failed — falling back to in-memory: ${e.message}`);
-    });
+    }
   }
   adapter._persist = persist;
 
