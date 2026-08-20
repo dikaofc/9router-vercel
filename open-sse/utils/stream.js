@@ -401,19 +401,13 @@ export function createSSEStream(options = {}) {
           // Without it they can hang until timeout and trigger failover.
           // Gemini-family clients (Antigravity, Vertex, Gemini) reject this sentinel with 400 syntax errors.
           const isGeminiFamily = provider === "antigravity" || provider === "gemini" || provider === "vertex";
-          if (!streamDoneSent && !isGeminiFamily) {
-            const doneOutput = "data: [DONE]\n\n";
-            reqLogger?.appendConvertedChunk?.(doneOutput);
-            controller.enqueue(sharedEncoder.encode(doneOutput));
-          }
-
-          // Ensure the stream terminates with an OpenAI finish chunk + [DONE].
-          // Gateways like pi.dev can EOF without a terminal choose.finish_reason
-          // (they send reasoning deltas then close). AI SDK clients watch for
-          // finish_reason to exit "thinking" state — absent one, they stay in a
-          // thinking loop and report "finished with no reason". Inject a final
-          // `finish_reason:"stop"` chunk before the sentinel so the client ends
-          // cleanly and the stop reason reaches it.
+          // Ensure the stream terminates with a finish chunk BEFORE the [DONE] sentinel.
+          // Gateways like pi.dev can EOF without a terminal choice.finish_reason
+          // (they send reasoning deltas then close). AI SDK clients also stop at
+          // the first [DONE] — anything after it is never read, so emitting the
+          // sentinel first makes the client throw "stream ended without
+          // finish_reason" and retry from zero. Inject a final `finish_reason:"stop"`
+          // chunk first so the client ends cleanly and the stop reason reaches it.
           if (!streamDoneSent && !isGeminiFamily) {
             const finalReason = "stop";
             const finishChunk = {
@@ -429,6 +423,9 @@ export function createSSEStream(options = {}) {
             const finishOutput = `data: ${JSON.stringify(finishChunk)}\n\n`;
             reqLogger?.appendConvertedChunk?.(finishOutput);
             controller.enqueue(sharedEncoder.encode(finishOutput));
+            const doneOutput = "data: [DONE]\n\n";
+            reqLogger?.appendConvertedChunk?.(doneOutput);
+            controller.enqueue(sharedEncoder.encode(doneOutput));
             streamDoneSent = true;
           }
 
@@ -441,7 +438,7 @@ export function createSSEStream(options = {}) {
           return;
         }
 
-        if (buffer.trim()) {
+        if (buffer.trim() && !streamDoneSent) {
           const parsed = parseSSELine(buffer.trim());
           if (parsed && !parsed.done) {
             const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
