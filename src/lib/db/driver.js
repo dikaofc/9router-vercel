@@ -80,8 +80,10 @@ async function trySqlJs() {
 }
 
 async function initAdapter() {
-  // On Vercel, skip filesystem operations entirely
-  if (!IS_VERCEL) ensureDirs();
+  // ensureDirs() has a Vercel branch (creates /tmp/9router/...), so it must run
+  // unconditionally — otherwise the sql.js fallback and the Supabase temp-file
+  // upload both fail with ENOENT and every write stays in-memory only.
+  ensureDirs();
 
   // Vercel: prefer Supabase (permanent, shared) → KV → in-memory fallback.
   let adapter = await trySupabaseAdapter();

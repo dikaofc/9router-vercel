@@ -99,6 +99,7 @@ async function sbRead(sup) {
 // The blob goes through a temp file, not argv, to dodge CLI length limits.
 function sbWriteSync(sup, bytes) {
   const tmpFile = `/tmp/9router/db/.sb-upload-${process.pid}.bin`;
+  fs.mkdirSync("/tmp/9router/db", { recursive: true });
   fs.writeFileSync(tmpFile, Buffer.from(bytes));
   const url = `${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}?upsert=true`;
   const script = `

@@ -1,5 +1,6 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
+import { getAdapter } from "@/lib/db/driver.js";
 
 let initialized = false;
 
@@ -26,10 +27,15 @@ export async function OPTIONS() {
   });
 }
 
-export async function POST(request) {  
-  // Fallback to local handling
-  await ensureInitialized();
-  
+export async function POST(request) {
+  // Pre-warm the DB adapter so the usage write path is not a cold-start chain
+  // that races the serverless freeze after the SSE response finishes.
+  if (!initialized) {
+    try { await Promise.all([initTranslators(), getAdapter()]); }
+    catch { await initTranslators(); }
+    initialized = true;
+  }
+
   return await handleChat(request);
 }
 

@@ -4,6 +4,8 @@ import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
 import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, COLORS } from "./usageTracking.js";
 import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
+import { toOpenAIFinish } from "../translator/concerns/finishReason.js";
+import { OPENAI_FINISH } from "../translator/schema/finishReasons.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
 
 import { SSE_DONE, SSE_HEADERS, SSE_HEADERS_NO_BUFFER } from "./sseConstants.js";
@@ -168,7 +170,35 @@ export function createSSEStream(options = {}) {
                 usage = mergeUsage(usage, extracted);
               }
 
-              const isFinishChunk = parsed.choices?.[0]?.finish_reason;
+              // Fold provider-native reasoning fields into OpenAI delta.reasoning_content.
+              // Some compatible gateways (pi.dev, Decrypt/GLM-style) emit reasoning in
+              // `delta.reasoning` or `message.reasoning` instead of `reasoning_content`;
+              // an AI SDK client's reasoning tracker only watches reasoning_content, so
+              // otherwise it never leaves "thinking" state and loops forever.
+              if (delta && !delta.reasoning_content) {
+                const v = delta.reasoning ?? delta.thinking ?? parsed.message?.reasoning;
+                if (typeof v === "string" && v) {
+                  delta.reasoning_content = v;
+                  fieldsInjected = true;
+                }
+              }
+
+              // Normalize upstream finish_reason into the OpenAI enum the AI SDK expects.
+              // Gateways like pi.dev send raw `stop_reason` / absent finish_reason on the
+              // final chunk; the SDK treats a missing finish_reason as "still thinking" and
+              // re-polls, producing the endless loop.
+              const nativeFinish = parsed.choices?.[0]?.finish_reason ?? parsed.choices?.[0]?.stop_reason ?? parsed.finish_reason;
+              let finishReason = null;
+              if (nativeFinish != null) {
+                const norm = toOpenAIFinish(String(nativeFinish), FORMATS.OPENAI);
+                finishReason = norm || OPENAI_FINISH.STOP;
+                if (parsed.choices?.[0]) {
+                  parsed.choices[0].finish_reason = finishReason;
+                  fieldsInjected = true;
+                }
+              }
+
+              const isFinishChunk = finishReason != null;
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
@@ -375,6 +405,31 @@ export function createSSEStream(options = {}) {
             const doneOutput = "data: [DONE]\n\n";
             reqLogger?.appendConvertedChunk?.(doneOutput);
             controller.enqueue(sharedEncoder.encode(doneOutput));
+          }
+
+          // Ensure the stream terminates with an OpenAI finish chunk + [DONE].
+          // Gateways like pi.dev can EOF without a terminal choose.finish_reason
+          // (they send reasoning deltas then close). AI SDK clients watch for
+          // finish_reason to exit "thinking" state — absent one, they stay in a
+          // thinking loop and report "finished with no reason". Inject a final
+          // `finish_reason:"stop"` chunk before the sentinel so the client ends
+          // cleanly and the stop reason reaches it.
+          if (!streamDoneSent && !isGeminiFamily) {
+            const finalReason = "stop";
+            const finishChunk = {
+              id: `chatcmpl-${Date.now()}`,
+              object: "chat.completion.chunk",
+              created: Math.floor(Date.now() / 1000),
+              model: model || "unknown",
+              choices: [{ index: 0, delta: {}, finish_reason: finalReason }]
+            };
+            if (usage && Object.keys(usage).length > 0) {
+              finishChunk.usage = filterUsageForFormat(addBufferToUsage(usage), FORMATS.OPENAI);
+            }
+            const finishOutput = `data: ${JSON.stringify(finishChunk)}\n\n`;
+            reqLogger?.appendConvertedChunk?.(finishOutput);
+            controller.enqueue(sharedEncoder.encode(finishOutput));
+            streamDoneSent = true;
           }
 
           if (onStreamComplete) {

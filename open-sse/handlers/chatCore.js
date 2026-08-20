@@ -96,8 +96,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const upstreamModel = getModelUpstreamId(alias, model);
 
   // Inject provider-level thinking config override (only if client hasn't set)
-  // on/off → extended type (body.thinking), none/low/medium/high → effort type (body.reasoning_effort)
-  if (providerThinking?.mode && providerThinking.mode !== "auto") {
+  // on/off → extended type (body.thinking), none/low/medium/high → effort type (body.reasoning_effort).
+  // Skip for user-added openai-compatible nodes: their gateways (pi.dev etc.) can
+  // burn the whole token budget on thinking and return a thinking-only turn with no
+  // content/tool_use, which makes CLI agent clients loop "thinking then no reason".
+  if (providerThinking?.mode && providerThinking.mode !== "auto" && !provider.startsWith("openai-compatible-")) {
     const mode = providerThinking.mode;
     if (mode === "on" && !body.thinking) {
       console.log("Injecting provider-level thinking config override: on");

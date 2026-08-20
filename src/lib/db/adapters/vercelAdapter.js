@@ -250,5 +250,43 @@ export async function createVercelAdapter() {
 
   function close() { db.close(); }
 
+  // ─── Cross-instance re-sync ────────────────────────────────────────────
+  // Same problem the Supabase adapter solves: on Vercel many serverless
+  // instances share ONE KV blob but each keeps its own in-memory sql.js copy.
+  // Without re-sync, a write on instance A is invisible to instance B until
+  // B's cold start → settings/toggles/proxy-pools "revert" and usage reads 0.
+  // We re-pull the blob (throttled, byte-compared) before each request.
+  const SYNC_TTL_MS = 2000;
+  let _lastSyncCheck = 0;
+  let _syncPromise = null;
+  async function syncRemote(force = false) {
+    if (!adapter._kv || adapter._seeding) return;
+    const now = Date.now();
+    if (!force && now - _lastSyncCheck < SYNC_TTL_MS) return;
+    if (_syncPromise) { try { await _syncPromise; } catch {} return; }
+    _syncPromise = (async () => {
+      try {
+        const bytes = kvRead(adapter._kv);
+        if (!bytes) { _lastSyncCheck = Date.now(); return; }
+        const current = db.export();
+        if (bytes.length === current.length && bytes.every((b, i) => b === current[i])) {
+          _lastSyncCheck = Date.now();
+          return;
+        }
+        const newDb = new SQLLib.Database(bytes);
+        newDb.exec(PRAGMA_SQL);
+        const old = db;
+        db = newDb;
+        try { old.close(); } catch {}
+        _lastSyncCheck = Date.now();
+      } catch (e) {
+        _lastSyncCheck = Date.now();
+        console.warn(`[DB/Vercel] re-sync skipped: ${e.message}`);
+      }
+    })();
+    try { await _syncPromise; } finally { _syncPromise = null; }
+  }
+  adapter._syncRemote = syncRemote;
+
   return adapter;
 }

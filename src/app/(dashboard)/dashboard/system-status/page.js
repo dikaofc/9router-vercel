@@ -151,8 +151,7 @@ export default function SystemStatusPage() {
         requests: usage?.totalRequests || prev?.requests || 0,
         totalTokens:
           (usage?.totalPromptTokens || 0) +
-          (usage?.totalCompletionTokens || 0) +
-          (usage?.totalCachedTokens || 0) || prev?.totalTokens || 0,
+          (usage?.totalCompletionTokens || 0) || prev?.totalTokens || 0,
         timestamp: now.toISOString(),
       }));
 

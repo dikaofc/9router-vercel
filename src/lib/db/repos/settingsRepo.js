@@ -99,6 +99,15 @@ export async function getSettings() {
 // Atomic read-merge-write inside transaction (prevents losing concurrent updates)
 export async function updateSettings(updates) {
   const db = await getAdapter();
+  // On Vercel/Supabase the shared blob changes server-side between our last
+  // sync and this write; a throttled pull would merge onto a stale base and
+  // clobber keys written by a sibling instance (e.g. rapid per-toggle PATCHes).
+  // Force a fresh pull so the merge and the upload win the race.
+  try {
+    if (typeof db._syncRemote === "function") await db._syncRemote(true);
+  } catch {
+    // Non-durable adapters (vercel-in-memory, plain sqlite) have no remote — nothing to sync.
+  }
   let next;
   db.transaction(function () {
     const row = db.get(`SELECT data FROM settings WHERE id = 1`);
