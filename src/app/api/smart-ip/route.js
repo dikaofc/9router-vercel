@@ -54,14 +54,29 @@ export default async function handler(req) {
   }
 }`;
 
+async function readJson(res, fallback = undefined) {
+  const text = await res.text().catch(() => "");
+  if (text) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: { message: text.slice(0, 500) } };
+    }
+  }
+  return fallback ?? { error: { message: `HTTP ${res.status}` } };
+}
+
 async function pollDeployment(deploymentId, token, maxMs = 90000) {
   const start = Date.now();
   while (Date.now() - start < maxMs) {
     const res = await fetch(`${VERCEL_API}/v13/deployments/${deploymentId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.readyState === "READY") return data;
+    if (res.status !== 200) {
+      throw new Error(`Deployment status check failed (HTTP ${res.status}): ${data.error?.message || JSON.stringify(data)}`);
+    }
     if (data.readyState === "ERROR" || data.readyState === "CANCELED") {
       throw new Error(`Deployment ${data.readyState}`);
     }
@@ -121,12 +136,17 @@ export async function POST(request) {
         });
 
         if (!deployRes.ok) {
-          const err = await deployRes.json().catch(() => ({}));
-          results.push({ region: region.id, error: err.error?.message || "Deploy failed" });
+          const err = await readJson(deployRes, {});
+          const text = err.error?.message || (typeof err === "string" ? err : JSON.stringify(err));
+          results.push({ region: region.id, error: text || `Deploy failed (HTTP ${deployRes.status})` });
           continue;
         }
 
-        const deployment = await deployRes.json();
+        const deployment = await deployRes.json().catch(() => null);
+        if (!deployment || !deployment.id) {
+          results.push({ region: region.id, error: "Deployment created but returned no valid response" });
+          continue;
+        }
         const ready = await pollDeployment(deployment.id, vercelToken);
         const relayUrl = `https://${ready.url}`;
 

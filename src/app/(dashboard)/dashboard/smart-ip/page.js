@@ -58,7 +58,9 @@ export default function SmartIpPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vercelToken, regions: selectedRegions, targetUrl }),
       });
-      const data = await res.json();
+      const rawText = await res.text();
+      let data = {};
+      try { data = JSON.parse(rawText); } catch { data = { error: rawText || `HTTP ${res.status}` }; }
 
       if (data.results) {
         const logs = data.results.map((r) => ({
@@ -68,6 +70,9 @@ export default function SmartIpPage() {
           type: r.status === "deployed" ? "success" : "error",
         }));
         setDeployLog((prev) => [...prev, ...logs]);
+      }
+      if (data.error && !data.results) {
+        setDeployLog((prev) => [...prev, { text: `❌ Deploy failed: ${data.error}`, type: "error" }]);
       }
       fetchRelays();
     } catch (err) {
