@@ -17,11 +17,14 @@ const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted"];
 // Storage/cloud keys must never be returned to the dashboard client in plaintext.
 // They are written to process.env at runtime and stored in the DB — redact on read.
 const SECRET_PREFIXES = ["DIKA_", "NEXT_PUBLIC_DIKA_", "MONGODB_", "KV_REST_", "UPSTASH_REDIS_REST_"];
+// Secrets stored server-side but that must never be returned to the browser.
+const NEVER_RETURN_KEYS = ["smartIpVercelToken"];
 
 function redactSecretKey(key) {
   for (const prefix of SECRET_PREFIXES) {
     if (key.startsWith(prefix)) return `*`.repeat(8);
   }
+  if (NEVER_RETURN_KEYS.includes(key)) return `*`.repeat(8);
   return false;
 }
 
@@ -50,11 +53,13 @@ async function detectPersistence() {
     );
     let supabaseWriteOk = null;
     let supabaseError = null;
+    let keyKind = null;
     if (adapter.driver === "vercel-supabase") {
       supabaseWriteOk = !adapter._failed && !adapter._readonly;
       supabaseError = adapter._lastError || null;
+      keyKind = adapter._keyKind || null;
     }
-    return { driver: adapter.driver, supabaseConfigured: hasSupabaseEnv, supabaseWriteOk, supabaseError };
+    return { driver: adapter.driver, supabaseConfigured: hasSupabaseEnv, supabaseWriteOk, supabaseError, keyKind };
   } catch {
     return { driver: "uninitialized", supabaseConfigured: false };
   }

@@ -27,19 +27,25 @@ const BUCKET = process.env.DIKA_SUPABASE_BUCKET || "9router";
 // Accept both app-prefixed names (dashboard paste) and the standard env names
 // the Vercel → Supabase integration auto-provisions (SUPABASE_URL /
 // SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY). Nothing hardcoded — env only.
+// Returns keyKind so the dashboard can warn when only a public/anon key is set
+// (anon cannot write to a private Storage bucket without an RLS policy).
 function detectSupabase() {
   const url =
     process.env.NEXT_PUBLIC_DIKA_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL;
-  const key =
-    process.env.DIKA_SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.DIKA_SUPABASE_SECRET_KEY ||
-    process.env.DIKA_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY;
-  if (url && key) return { url: String(url).replace(/\/+$/, ""), key: String(key) };
+  const candidates = [
+    ["service_role", process.env.DIKA_SUPABASE_SERVICE_ROLE_KEY],
+    ["service_role", process.env.SUPABASE_SERVICE_ROLE_KEY],
+    ["secret", process.env.DIKA_SUPABASE_SECRET_KEY],
+    ["anon", process.env.DIKA_SUPABASE_ANON_KEY],
+    ["anon", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY],
+    ["anon", process.env.SUPABASE_ANON_KEY],
+  ];
+  const [keyKind, key] = candidates.find(([, v]) => v && String(v).trim()) || [null, null];
+  if (url && key) {
+    return { url: String(url).replace(/\/+$/, ""), key: String(key), keyKind };
+  }
   return null;
 }
 
@@ -116,6 +122,7 @@ export async function createSupabaseAdapter() {
   const adapter = {
     driver: "vercel-supabase",
     _sup: sup,
+    _keyKind: sup.keyKind,
     _failed: false,
     _readonly: loadFailed,
     _lastError: loadError,

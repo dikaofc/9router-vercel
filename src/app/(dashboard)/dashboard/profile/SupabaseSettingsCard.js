@@ -117,7 +117,12 @@ export default function SupabaseSettingsCard() {
         <p className="text-text-muted">Storage backend aktif:</p>
         <p className="font-medium">{persistence ? driverLabel(persistence.driver) : "memuat…"}</p>
         {persistence?.driver === "vercel-supabase" && persistence.supabaseWriteOk === true && (
-          <p className="text-xs text-green-500">✓ Supabase aktif — DB dipersist permanen (survive cold start).</p>
+          <p className="text-xs text-green-500">
+            ✓ Supabase aktif — DB dipersist permanen (survive cold start).
+            {persistence.keyKind === "anon" && (
+              <span className="text-amber-500"> ⚠️ Pakai anon key — tulis ke Storage bisa gagal tanpa RLS policy. Rekomendasi: SERVICE_ROLE key.</span>
+            )}
+          </p>
         )}
         {persistence?.driver === "vercel-supabase" && persistence.supabaseWriteOk === false && (
           <p className="text-xs text-red-500">
