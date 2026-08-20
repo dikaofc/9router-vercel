@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { ollamaModels } from "open-sse/config/ollamaModels.js";
 
 const CORS_HEADERS = {

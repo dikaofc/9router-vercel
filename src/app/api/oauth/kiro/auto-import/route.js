@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { readFile, readdir } from "fs/promises";
 import { homedir } from "os";

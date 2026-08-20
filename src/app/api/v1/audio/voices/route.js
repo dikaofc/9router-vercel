@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 
 // Provider → internal voices API. Edge/local-device share the generic endpoint.

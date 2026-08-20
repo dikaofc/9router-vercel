@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getSettings } from "@/lib/localDb";
 import { generateSamlMetadata } from "@/lib/auth/saml";
 

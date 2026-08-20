@@ -4,7 +4,7 @@ import { createSSETransformStreamWithLogger, createPassthroughStreamWithLogger }
 import { pipeWithDisconnect } from "../../utils/streamHandler.js";
 import { PROVIDERS } from "../../config/providers.js";
 import { STREAM_STALL_TIMEOUT_MS } from "../../config/runtimeConfig.js";
-import { buildAbortedResponsesTerminalBytes } from "../../utils/responsesStreamHelpers.js";
+import { buildAbortedResponsesTerminalBytes, buildOpenAIFinishTerminalBytes, buildClaudeMessageStopTerminalBytes } from "../../utils/responsesStreamHelpers.js";
 import { buildRequestDetail, extractRequestConfig, saveUsageStats, formatDoneLine } from "./requestDetail.js";
 import { saveRequestDetail } from "@/lib/usageDb.js";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
@@ -81,9 +81,21 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
 
   const transformStream = buildTransformStream({ provider, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, customToolNames, model, connectionId, body, onStreamComplete, apiKey });
 
-  // Responses passthrough: synthesize response.failed + [DONE] if the stream aborts/stalls before a terminal event
+  // Terminal chunk when the upstream disconnects/stalls/errors before a
+  // clean finish (the transform flush then never runs). Without it the client
+  // OpenAI SDK throws "stream ended without finish_reason" and the agent
+  // retries the whole task from zero. Responses passthrough already has its
+  // own terminal (response.failed + [DONE]); OpenAI/Claude streams get a
+  // finish_reason / message_stop so they end cleanly instead of erroring.
   const isResponsesPassthrough = sourceFormat === FORMATS.OPENAI_RESPONSES && targetFormat === FORMATS.OPENAI_RESPONSES;
-  const onAbortTerminal = isResponsesPassthrough ? buildAbortedResponsesTerminalBytes : null;
+  let onAbortTerminal = null;
+  if (isResponsesPassthrough) {
+    onAbortTerminal = buildAbortedResponsesTerminalBytes;
+  } else if (sourceFormat === FORMATS.OPENAI || targetFormat === FORMATS.OPENAI) {
+    onAbortTerminal = buildOpenAIFinishTerminalBytes;
+  } else if (sourceFormat === FORMATS.CLAUDE || targetFormat === FORMATS.CLAUDE) {
+    onAbortTerminal = buildClaudeMessageStopTerminalBytes;
+  }
   const stallTimeoutMs = PROVIDERS[provider]?.stallTimeoutMs || STREAM_STALL_TIMEOUT_MS;
   const transformedBody = pipeWithDisconnect(providerResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs);
 

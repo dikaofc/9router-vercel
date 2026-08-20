@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
 

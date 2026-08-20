@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { access, constants } from "fs/promises";
 import { homedir } from "os";

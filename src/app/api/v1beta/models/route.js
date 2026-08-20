@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PROVIDER_MODELS } from "@/shared/constants/models";
 
 /**

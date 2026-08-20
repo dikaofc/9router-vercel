@@ -481,11 +481,35 @@ export function createSSEStream(options = {}) {
         }
 
         if (flushed?.length > 0) {
+          let openaiFinishEmitted = false;
           for (const item of flushed) {
             if (item === null || item === undefined) continue;
+            if (item.choices?.[0]?.finish_reason) openaiFinishEmitted = true;
             const output = formatSSE(item, sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
             controller.enqueue(sharedEncoder.encode(output));
+          }
+          // Belt-and-suspenders: if the translator emitted no finish_reason for
+          // an OpenAI client (upstream final chunk malformed/dropped), synthesize
+          // one so the client doesn't throw "stream ended without finish_reason".
+          const isGeminiFamily = provider === "antigravity" || provider === "gemini" || provider === "vertex";
+          if (sourceFormat === FORMATS.OPENAI && !openaiFinishEmitted && !isGeminiFamily) {
+            const finishChunk = {
+              id: `chatcmpl-${Date.now()}`,
+              object: "chat.completion.chunk",
+              created: Math.floor(Date.now() / 1000),
+              model: model || "unknown",
+              choices: [{ index: 0, delta: {}, finish_reason: "stop" }]
+            };
+            if (state?.usage && Object.keys(state.usage).length > 0) {
+              finishChunk.usage = filterUsageForFormat(addBufferToUsage(state.usage), FORMATS.OPENAI);
+            }
+            const finishOutput = `data: ${JSON.stringify(finishChunk)}\n\n`;
+            reqLogger?.appendConvertedChunk?.(finishOutput);
+            controller.enqueue(sharedEncoder.encode(finishOutput));
+            const doneOutput = "data: [DONE]\n\n";
+            reqLogger?.appendConvertedChunk?.(doneOutput);
+            controller.enqueue(sharedEncoder.encode(doneOutput));
           }
         }
 
