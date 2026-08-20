@@ -5,6 +5,9 @@ import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // GET /api/models - Get models with aliases
 export async function GET() {
   try {

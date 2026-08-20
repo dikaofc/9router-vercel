@@ -149,7 +149,10 @@ export default function SystemStatusPage() {
         } : prev?.memory || { heapUsed: 0, heapTotal: 0, rss: 0, external: 0 },
         models: Array.isArray(models?.models) ? models.models.length : prev?.models || 0,
         requests: usage?.totalRequests || prev?.requests || 0,
-        totalTokens: usage?.totalTokens || prev?.totalTokens || 0,
+        totalTokens:
+          (usage?.totalPromptTokens || 0) +
+          (usage?.totalCompletionTokens || 0) +
+          (usage?.totalCachedTokens || 0) || prev?.totalTokens || 0,
         timestamp: now.toISOString(),
       }));
 

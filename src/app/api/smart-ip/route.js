@@ -5,6 +5,8 @@ import { getSettings } from "@/lib/db/repos/settingsRepo";
 // Hobby serverless budget is 60s. Per-region deploy + poll run in parallel
 // (see POST), so N regions finish in ~one region's time, not N×.
 export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const VERCEL_API = "https://api.vercel.com";
 
