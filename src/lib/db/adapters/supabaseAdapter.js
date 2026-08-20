@@ -12,6 +12,7 @@
  */
 import initSqlJs from "sql.js";
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import { PRAGMA_SQL } from "../schema.js";
 
 let SQL = null;
@@ -98,7 +99,7 @@ async function sbRead(sup) {
 // The blob goes through a temp file, not argv, to dodge CLI length limits.
 function sbWriteSync(sup, bytes) {
   const tmpFile = `/tmp/9router/db/.sb-upload-${process.pid}.bin`;
-  require("node:fs").writeFileSync(tmpFile, Buffer.from(bytes));
+  fs.writeFileSync(tmpFile, Buffer.from(bytes));
   const url = `${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}?upsert=true`;
   const script = `
     const fs = require("fs");
@@ -127,7 +128,7 @@ function sbWriteSync(sup, bytes) {
       { stdio: ["ignore", "ignore", "pipe"], timeout: 20000 }
     );
   } finally {
-    try { require("node:fs").unlinkSync(tmpFile); } catch {}
+    try { fs.unlinkSync(tmpFile); } catch {}
   }
 }
 
