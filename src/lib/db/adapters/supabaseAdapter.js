@@ -51,7 +51,7 @@ function detectSupabase() {
 
 async function ensureBucket(sup) {
   try {
-    await fetch(`${sup.url}/storage/v1/bucket`, {
+    const res = await fetch(`${sup.url}/storage/v1/bucket`, {
       method: "POST",
       headers: {
         apikey: sup.key,
@@ -60,8 +60,23 @@ async function ensureBucket(sup) {
       },
       body: JSON.stringify({ name: BUCKET, public: false }),
     });
-  } catch {
-    /* bucket may already exist (409) — ignore */
+    // 400 with anon key = no RLS policy / forbidden write. Surface it instead
+    // of silently treating the bucket as missing so the read-only trap is
+    // visible in the dashboard (supabaseWriteOk=false).
+    if (!res.ok && res.status !== 409 && [400, 401, 403].includes(res.status)) {
+      const txt = await res.text().catch(() => "");
+      if (sup.keyKind === "anon") {
+        throw new Error(
+          `anon key cannot manage the storage bucket (HTTP ${res.status}). ` +
+          `Set SUPABASE_SERVICE_ROLE_KEY (or DIKA_SUPABASE_SERVICE_ROLE_KEY) in Vercel env — ` +
+          txt.slice(0, 160)
+        );
+      }
+      console.warn(`[DB/Supabase] ensureBucket HTTP ${res.status}: ${txt.slice(0, 160)}`);
+    }
+  } catch (e) {
+    if (e.message?.includes("anon key")) throw e;
+    /* bucket may already exist (409) or transient network — ignore */
   }
 }
 
@@ -75,23 +90,45 @@ async function sbRead(sup) {
   return { bytes: new Uint8Array(buf), etag: res.headers.get("etag") };
 }
 
-// Synchronous write (curl, like the KV adapter). Must be sync: on Vercel a
-// fire-and-forget async fetch is frozen the moment the response is sent, so the
-// blob never reaches Supabase and the key is lost on the next cold start.
+// Synchronous write. Must be sync: on Vercel a fire-and-forget async fetch is
+// frozen the moment the response is sent, so the blob never reaches Supabase
+// and the key is lost on the next cold start. We shell out to a child `node`
+// (process.execPath — guaranteed present, unlike curl which is NOT guaranteed
+// in the Vercel serverless runtime) that does an HTTPS fetch from the URL.
+// The blob goes through a temp file, not argv, to dodge CLI length limits.
 function sbWriteSync(sup, bytes) {
-  execFileSync(
-    "curl",
-    [
-      "-s", "--max-time", "15", "-X", "POST",
-      "-H", `Authorization: Bearer ${sup.key}`,
-      "-H", `apikey: ${sup.key}`,
-      "-H", "Content-Type: application/octet-stream",
-      "-H", "x-upsert: true",
-      "--data-binary", "@-",
-      `${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}?upsert=true`,
-    ],
-    { input: Buffer.from(bytes), stdio: ["pipe", "ignore", "ignore"] }
-  );
+  const tmpFile = `/tmp/9router/db/.sb-upload-${process.pid}.bin`;
+  require("node:fs").writeFileSync(tmpFile, Buffer.from(bytes));
+  const url = `${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}?upsert=true`;
+  const script = `
+    const fs = require("fs");
+    (async () => {
+      const res = await fetch(process.argv[1], {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + process.argv[2],
+          apikey: process.argv[2],
+          "Content-Type": "application/octet-stream",
+          "x-upsert": "true",
+        },
+        body: fs.readFileSync(process.argv[3]),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        console.error("HTTP " + res.status + " " + t.slice(0, 200));
+        process.exit(1);
+      }
+    })().catch((e) => { console.error(e.message); process.exit(1); });
+  `;
+  try {
+    execFileSync(
+      process.execPath,
+      ["-e", script, url, sup.key, tmpFile],
+      { stdio: ["ignore", "ignore", "pipe"], timeout: 20000 }
+    );
+  } finally {
+    try { require("node:fs").unlinkSync(tmpFile); } catch {}
+  }
 }
 
 export async function createSupabaseAdapter() {
