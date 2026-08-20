@@ -47,6 +47,12 @@ export default function SupabaseSettingsCard() {
         settings survive Vercel cold starts. For guaranteed cold-start persistence also set{" "}
         <code>NEXT_PUBLIC_DIKA_SUPABASE_URL</code> + a Supabase key in your Vercel project env.
       </p>
+      <p className="text-xs text-amber-500 mb-3">
+        ⚠️ Secrets you paste (including <code>service_role</code>) are saved in this app&apos;s
+        DB (Supabase Storage, encrypted at rest) and used server-side only.
+        <code>service_role</code> grants full DB access &amp; bypasses RLS — prefer a key scoped
+        to Storage writes. If these creds were ever shared in chat, rotate them now.
+      </p>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
