@@ -22,12 +22,21 @@ async function loadSql() {
 const DB_KEY = "db.sqlite";
 const BUCKET = process.env.DIKA_SUPABASE_BUCKET || "9router";
 
+// Accept both app-prefixed names (dashboard paste) and the standard env names
+// the Vercel → Supabase integration auto-provisions (SUPABASE_URL /
+// SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY). Nothing hardcoded — env only.
 function detectSupabase() {
-  const url = process.env.NEXT_PUBLIC_DIKA_SUPABASE_URL;
+  const url =
+    process.env.NEXT_PUBLIC_DIKA_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL;
   const key =
     process.env.DIKA_SUPABASE_SERVICE_ROLE_KEY ||
     process.env.DIKA_SUPABASE_SECRET_KEY ||
-    process.env.DIKA_SUPABASE_ANON_KEY;
+    process.env.DIKA_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY;
   if (url && key) return { url: String(url).replace(/\/+$/, ""), key: String(key) };
   return null;
 }

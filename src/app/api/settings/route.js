@@ -38,10 +38,15 @@ async function detectPersistence() {
     const { getAdapter } = await import("@/lib/db/driver.js");
     const adapter = await getAdapter();
     const hasSupabaseEnv = !!(
-      process.env.NEXT_PUBLIC_DIKA_SUPABASE_URL &&
+      (process.env.NEXT_PUBLIC_DIKA_SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        process.env.SUPABASE_URL) &&
       (process.env.DIKA_SUPABASE_SERVICE_ROLE_KEY ||
         process.env.DIKA_SUPABASE_SECRET_KEY ||
-        process.env.DIKA_SUPABASE_ANON_KEY)
+        process.env.DIKA_SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_ANON_KEY)
     );
     let supabaseWriteOk = null;
     let supabaseError = null;
