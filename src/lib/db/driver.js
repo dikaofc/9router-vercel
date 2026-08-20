@@ -123,9 +123,18 @@ async function initAdapter() {
 }
 
 export async function getAdapter() {
-  if (state.instance) return state.instance;
+  if (state.instance) {
+    if (typeof state.instance._syncRemote === "function") {
+      try { await state.instance._syncRemote(); } catch {}
+    }
+    return state.instance;
+  }
   if (!state.initPromise) state.initPromise = initAdapter().then((a) => { state.instance = a; return a; });
-  return state.initPromise;
+  const a = await state.initPromise;
+  if (typeof a._syncRemote === "function") {
+    try { await a._syncRemote(); } catch {}
+  }
+  return a;
 }
 
 export function getAdapterSync() {

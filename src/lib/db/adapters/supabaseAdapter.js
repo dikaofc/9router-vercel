@@ -72,7 +72,7 @@ async function sbRead(sup) {
   if (res.status === 404) return null; // first run — no blob yet
   if (!res.ok) throw new Error(`Supabase read failed (${res.status})`);
   const buf = await res.arrayBuffer();
-  return new Uint8Array(buf);
+  return { bytes: new Uint8Array(buf), etag: res.headers.get("etag") };
 }
 
 // Synchronous write (curl, like the KV adapter). Must be sync: on Vercel a
@@ -102,12 +102,16 @@ export async function createSupabaseAdapter() {
   }
 
   let db;
+  let _etag = null;
+  let _lastSyncCheck = 0;
+  let _syncPromise = null;
   let loadFailed = false;
   let loadError = null;
   try {
     await ensureBucket(sup);
-    const bytes = await sbRead(sup);
-    if (bytes) db = new SQLLib.Database(bytes);
+    const loaded = await sbRead(sup);
+    if (loaded) { db = new SQLLib.Database(loaded.bytes); _etag = loaded.etag; }
+    _lastSyncCheck = Date.now();
   } catch (e) {
     // Read failed (network / auth — NOT a clean 404 first-run). Starting fresh
     // would let this instance overwrite the real blob on the next persist, so
@@ -219,6 +223,49 @@ export async function createSupabaseAdapter() {
   function close() {
     db.close();
   }
+
+  // ─── Cross-instance re-sync ────────────────────────────────────────────
+  // On Vercel many serverless instances share ONE Supabase blob but each keeps
+  // its own in-memory sql.js copy. Without re-sync, a save on instance A is
+  // invisible to instance B until B's cache expires → config "reverts to
+  // default". We re-pull the blob (conditional GET, cheap 304) before each
+  // request so every instance converges on the latest write.
+  const SYNC_TTL_MS = 2000;
+  async function syncRemote(force = false) {
+    if (adapter._failed || adapter._readonly || !adapter._sup) return;
+    const now = Date.now();
+    if (!force && now - _lastSyncCheck < SYNC_TTL_MS) return;
+    if (_syncPromise) { try { await _syncPromise; } catch {} return; }
+    _syncPromise = (async () => {
+      try {
+        const headers = { apikey: sup.key, Authorization: `Bearer ${sup.key}` };
+        if (_etag) headers["If-None-Match"] = _etag;
+        const res = await fetch(`${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}`, { headers });
+        if (res.status === 304 || res.status === 404) { _lastSyncCheck = Date.now(); return; }
+        if (!res.ok) { _lastSyncCheck = Date.now(); return; }
+        const buf = new Uint8Array(await res.arrayBuffer());
+        // Skip swap when content is byte-identical (handles missing ETag).
+        const current = db.export();
+        if (buf.length === current.length && buf.every((b, i) => b === current[i])) {
+          _etag = res.headers.get("etag");
+          _lastSyncCheck = Date.now();
+          return;
+        }
+        const newDb = new SQLLib.Database(buf);
+        newDb.exec(PRAGMA_SQL);
+        const old = db;
+        db = newDb;
+        try { old.close(); } catch {}
+        _etag = res.headers.get("etag");
+        _lastSyncCheck = Date.now();
+      } catch (e) {
+        _lastSyncCheck = Date.now();
+        console.warn(`[DB/Supabase] re-sync skipped: ${e.message}`);
+      }
+    })();
+    try { await _syncPromise; } finally { _syncPromise = null; }
+  }
+  adapter._syncRemote = syncRemote;
 
   return adapter;
 }
