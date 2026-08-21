@@ -65,46 +65,15 @@ export async function seedFromEnv(adapter) {
   // The login endpoint reads INITIAL_PASSWORD env var directly for comparison.
   const settings = {};
 
-  const providerPrefixes = [
-    "OPENAI", "ANTHROPIC", "GEMINI", "GROQ", "DEEPSEEK", "XAI",
-    "MISTRAL", "COHERE", "TOGETHER", "FIREWORKS", "CEREBRAS",
-    "NVIDIA", "SILICONFLOW", "NEBIUS", "CHUTES", "HYPERBOLIC",
-    "PERPLEXITY", "GLM", "KIMI", "MINIMAX", "OPENROUTER",
-    "VERTEX", "KIRO", "OPENCODE", "OPENCODE_GO", "KIMCHI", "CURSOR",
-    "CODEROUTER", "AGENTROUTER", "REQUESTY", "SENSENOVA",
-    "YUANBAO", "AGNES", "CHEAPERINFERENCE",
-  ];
+  // NOTE: provider API keys are NOT seeded from Vercel env vars. They belong in
+  // the 9Router DASHBOARD (Settings → Providers), where they persist to Upstash
+  // and are shared across all serverless instances. Seeding them from Vercel env
+  // would only fire on a cold start with an EMPTY DB and be ignored afterwards,
+  // which is the wrong mental model — so we intentionally do not read
+  // PROVIDER_*_API_KEY here. Only 9Router's own CLI auth keys (API_KEY_SECRET /
+  // API_KEYS) are provisioned via env, below.
 
   const now = new Date().toISOString();
-  const connections = [];
-
-  for (const prefix of providerPrefixes) {
-    const apiKey = process.env[`PROVIDER_${prefix}_API_KEY`];
-    if (!apiKey) continue;
-    const providerLower = prefix.toLowerCase();
-    connections.push({
-      id: `vercel-${providerLower}-${Date.now()}`,
-      provider: providerLower,
-      authType: "apikey",
-      name: `${providerLower} (Vercel)`,
-      email: null, priority: null, isActive: 1,
-      data: JSON.stringify({ apiKey, providerSpecificData: {} }),
-      createdAt: now, updatedAt: now,
-    });
-  }
-
-  const genericKey = process.env.PROVIDER_API_KEY;
-  const genericProvider = process.env.PROVIDER_NAME || "openai";
-  if (genericKey) {
-    connections.push({
-      id: `vercel-generic-${Date.now()}`,
-      provider: genericProvider, authType: "apikey",
-      name: `${genericProvider} (Vercel)`,
-      email: null, priority: null, isActive: 1,
-      data: JSON.stringify({ apiKey: genericKey, providerSpecificData: {} }),
-      createdAt: now, updatedAt: now,
-    });
-  }
 
   const defaultSettings = {
     requireLogin: true,  // Password protection ON (default: 123456)
@@ -128,11 +97,9 @@ export async function seedFromEnv(adapter) {
     );
   }
 
-  // Support multiple explicit API keys via API_KEYS (comma / newline / whitespace separated).
-  // This is the reliable way to provision keys on Vercel: the in-memory DB is ephemeral and keys
-  // created through the dashboard UI do NOT persist across cold starts or serverless instances,
-  // so a remote /v1 request frequently hits an instance whose memory has no key -> 401.
-  // Pinning keys via API_KEYS re-seeds them on every cold start.
+  // Optional: pin multiple CLI API keys via API_KEYS (comma / newline / whitespace
+  // separated). Useful if you'd rather not provision them through the dashboard.
+  // (Dashboard-created keys persist via Upstash and are the normal path.)
   const apiKeysEnv = process.env.API_KEYS;
   if (apiKeysEnv) {
     const extraKeys = String(apiKeysEnv)
@@ -149,13 +116,6 @@ export async function seedFromEnv(adapter) {
     if (extraKeys.length) {
       console.log(`[DB/Vercel] Seeded ${extraKeys.length} API key(s) from API_KEYS env var`);
     }
-  }
-
-  for (const conn of connections) {
-    adapter.run(
-      `INSERT INTO providerConnections(id, provider, authType, name, email, priority, isActive, data, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [conn.id, conn.provider, conn.authType, conn.name, conn.email, conn.priority, conn.isActive, conn.data, conn.createdAt, conn.updatedAt]
-    );
   }
 
   // Free-first: providers flagged `defaultEnabled: false` in their registry
