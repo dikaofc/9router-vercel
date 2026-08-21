@@ -523,10 +523,13 @@ a third party under a provider named "Self-hosted".
 | 👥 **Multi-Account Support**                                                      | Multiple accounts per provider                                                           | Load balancing + redundancy                       |
 | 🔄 **Auto Token Refresh**                                                         | OAuth tokens refresh automatically                                                       | No manual re-login needed                         |
 | 🎨 **Custom Combos**                                                              | Create unlimited model combinations                                                      | Tailor fallback to your needs                     |
+| 🔗 **Auto-Combo on Connect**                                                      | Every provider you connect auto-becomes a usable combo (named by alias)                  | Zero setup — connected = ready to route           |
+| 🆓 **Free-First Managed Combo**                                                   | Curated zero-key `oc/` (OpenCode Free) stack, auto-on, code-verified, fast-first         | Free, smart coding, survives heavy load           |
+| 💾 **Vercel-Safe Persistence**                                                    | Upstash → Supabase → KV → in-memory; writes flush before serverless freeze              | No settings/keys lost on Vercel cold starts        |
 | 📝 **Request Logging**                                                            | Debug mode with full request/response logs                                               | Troubleshoot issues easily                        |
 | 💾 **Cloud Sync**                                                                 | Sync config across devices                                                               | Same setup everywhere                             |
 | 📊 **Usage Analytics**                                                            | Track tokens, cost, trends over time                                                     | Optimize spending                                 |
-| 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers                                               | Flexible deployment options                       |
+| 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers, Vercel                                       | Flexible deployment options                       |
 
 Set `X-9Router-Token-Saver: off` to bypass all token savers for one chat request.
 
@@ -639,6 +642,16 @@ Seamless translation between formats:
 - Name your combos for easy access
 - Share combos across devices with Cloud Sync
 
+#### 🔗 Auto-Combo on Connect
+
+Every time you add a provider connection (dashboard, API key, or OAuth), 9Router **automatically creates a combo named after that provider's alias** containing every model it exposes (e.g. connecting `gemini` yields a `gemini` combo with `gemini/gemini-2.5-flash`, `gemini/gemini-3.7-flash`, …). Just point your client at `gemini` and it round-robins/falls-back across that provider's models — no manual combo setup. Deleting the last connection for a provider removes its auto-combo (user-created combos with the same name are never touched).
+
+#### 🆓 Free-First Managed Combo (Vercel / Zero-Key)
+
+On serverless (Vercel) and fresh installs, 9Router ships a managed **`free-first`** combo that is always on and needs **no API key, login, or connection**. It is re-seeded on every cold start with a curated stack of [OpenCode Free](https://opencode.ai) `oc/` models — each code-benchmarked for correct, non-looping output — ordered **fast-first** so heavy `/compact`-style prompts finish inside the 300s serverless limit. The Hy3 reasoning model sits last. Cascade fallback (plus a "model is unavailable" fall-through rule) silently skips dead or throttled models.
+
+> Only `oc/` (OpenCode Free) is zero-key chat-capable serverless-side. Other free providers (gemini-cli, groq, nvidia, cloudflare-ai, …) need an API key — add them in the dashboard and they auto-become combos too.
+
 ### 📝 Request Logging
 
 - Enable debug mode for full request/response logs
@@ -685,6 +698,8 @@ Seamless translation between formats:
 - ☁️ **VPS/Cloud** - Share across devices
 - 🐳 **Docker** - One-command deployment
 - 🚀 **Cloudflare Workers** - Global edge network
+- ▲ **Vercel** - Serverless; recommend the **Hobby** plan (`maxDuration` 300s, no Pro needed). State persists via Upstash (primary) → Supabase → KV → in-memory; writes flush before the lambda freezes so toggles/keys/combos survive cold starts. The zero-key `free-first` combo works out-of-the-box — no API key required.
+  - Required env (Vercel dashboard, never committed): `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or Vercel KV), `JWT_SECRET`, and `INITIAL_PASSWORD` (override the `123456` default). `API_KEY_SECRET`/`API_KEYS` optional for CLI auth.
 
 </details>
 

@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { flushCurrentAdapter } from "../requestFlush.js";
+import { ensureAutoComboForProvider, removeAutoComboForProvider } from "./combosRepo.js";
 
 const OPTIONAL_FIELDS = [
   "displayName", "email", "globalPriority", "defaultModel",
@@ -187,6 +188,12 @@ export async function createProviderConnection(data) {
   });
 
   await flushCurrentAdapter();
+  // Auto-combo: every connected provider becomes a usable combo (named by alias).
+  if (result && typeof result.provider === "string") {
+    try { await ensureAutoComboForProvider(result.provider); } catch (e) {
+      console.warn(`[connections] auto-combo for ${result.provider} skipped: ${e.message}`);
+    }
+  }
   return result;
 }
 
@@ -210,14 +217,24 @@ export async function updateProviderConnection(id, data) {
 export async function deleteProviderConnection(id) {
   const db = await getAdapter();
   let ok = false;
+  let provider = null;
   db.transaction(() => {
     const row = db.get(`SELECT provider FROM providerConnections WHERE id = ?`, [id]);
     if (!row) return;
+    provider = row.provider;
     db.run(`DELETE FROM providerConnections WHERE id = ?`, [id]);
     reorderInTx(db, row.provider);
     ok = true;
   });
   await flushCurrentAdapter();
+  if (ok && provider) {
+    const remaining = await getProviderConnections({ provider });
+    if (!remaining.length) {
+      try { await removeAutoComboForProvider(provider); } catch (e) {
+        console.warn(`[connections] auto-combo removal for ${provider} skipped: ${e.message}`);
+      }
+    }
+  }
   return ok;
 }
 
@@ -226,6 +243,9 @@ export async function deleteProviderConnectionsByProvider(providerId) {
   const before = db.get(`SELECT COUNT(*) AS n FROM providerConnections WHERE provider = ?`, [providerId]);
   db.run(`DELETE FROM providerConnections WHERE provider = ?`, [providerId]);
   await flushCurrentAdapter();
+  try { await removeAutoComboForProvider(providerId); } catch (e) {
+    console.warn(`[connections] auto-combo removal for ${providerId} skipped: ${e.message}`);
+  }
   return before?.n || 0;
 }
 

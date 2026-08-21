@@ -75,3 +75,54 @@ export async function deleteCombo(id) {
   await flushCurrentAdapter();
   return (res?.changes ?? 0) > 0;
 }
+
+/**
+ * Auto-combo: any provider a user connects becomes a ready-to-use combo named by
+ * the provider's alias (e.g. adding `gemini` yields a `gemini` combo containing
+ * `gemini/<modelId>` for every registry model). Fail-open: passthrough providers
+ * with no registry models (e.g. `oc`) return null and are skipped — they're
+ * already covered by the managed `free-first` combo. Never clobbers a user-owned
+ * combo sharing the alias name (only writes when kind === "auto").
+ */
+export async function ensureAutoComboForProvider(providerId) {
+  try {
+    const { PROVIDER_MODELS } = await import("open-sse/config/providerModels.js");
+    const REGISTRY = (await import("open-sse/providers/registry/index.js")).default;
+    const entry = REGISTRY.find((e) => e && e.id === providerId);
+    const alias = entry?.alias || providerId;
+    const models = PROVIDER_MODELS[alias] || [];
+    if (!models.length) return null;
+
+    const entries = models.map((m) => `${alias}/${m.id}`);
+    const existing = await getComboByName(alias);
+    if (existing) {
+      if (existing.kind === "auto") {
+        return await updateCombo(existing.id, { models: entries, kind: "auto" });
+      }
+      return null; // user-owned combo with same name — don't overwrite
+    }
+    return await createCombo({ name: alias, kind: "auto", models: entries });
+  } catch (e) {
+    console.warn(`[combos] auto-combo for ${providerId} skipped: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Remove the auto-combo for a provider once its last connection is gone, so we
+ * don't leave an orphan combo. Only deletes combos we created (kind === "auto").
+ */
+export async function removeAutoComboForProvider(providerId) {
+  try {
+    const REGISTRY = (await import("open-sse/providers/registry/index.js")).default;
+    const entry = REGISTRY.find((e) => e && e.id === providerId);
+    const alias = entry?.alias || providerId;
+    const existing = await getComboByName(alias);
+    if (existing && existing.kind === "auto") {
+      return await deleteCombo(existing.id);
+    }
+  } catch (e) {
+    console.warn(`[combos] auto-combo removal for ${providerId} skipped: ${e.message}`);
+  }
+  return false;
+}
