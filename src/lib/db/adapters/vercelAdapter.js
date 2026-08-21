@@ -93,19 +93,18 @@ export async function seedFromEnv(adapter) {
         "free-first",
         "free-first",
         JSON.stringify([
-          // ── OpenCode Free: the only zero-key chat provider. All oc/* models
-          // are no-auth (no connection/key/login needed). FAST-first so long
-          // /compact-style prompts finish under the 300s Vercel limit; xhigh
-          // reasoning models last as throttled fallbacks. Cascade (fallback +
-          // "model is unavailable" fall-through) skips dead/throttled models.
-          // deepseek-v4-flash-free EXCLUDED: retired upstream (400 unavailable). ──
+          // ── OpenCode Free: the only zero-key chat provider. Every model below
+          // was code-benchmarked (correct debounce() output, no looping/garbage).
+          // FAST-first so long /compact-style prompts finish under the 300s Vercel
+          // limit; xhigh reasoning (hy3) last. Cascade (fallback + "model is
+          // unavailable" fall-through) skips dead/throttled models.
+          // EXCLUDED: deepseek-v4-flash-free (retired, 400 unavailable),
+          // mimo-v2.5-free + big-pickle (sustained 429, dead on free tier). ──
           "oc/nemotron-3.5-lightning-free",    // Nemotron 3.5 Lightning (reasoning, fast)
-          "oc/muse-spark-1.2-contributor-free",// Muse Spark 1.2 Contributor
-          "oc/mimo-v2.5-free",                 // MiMo V2.5
-          "oc/big-pickle",                     // Big Pickle
-          "oc/laguna-s-2.1-free",              // Laguna S 2.1 (reasoning)
-          "oc/nemotron-3-ultra-free",          // Nemotron 3 Ultra (reasoning)
-          "oc/x-preview-f-free",               // X-Preview (reasoning)
+          "oc/muse-spark-1.2-contributor-free",// Muse Spark 1.2 Contributor (verified coding)
+          "oc/laguna-s-2.1-free",              // Laguna S 2.1 (reasoning, verified)
+          "oc/nemotron-3-ultra-free",          // Nemotron 3 Ultra (reasoning, verified)
+          "oc/x-preview-f-free",               // X-Preview (reasoning, verified)
           "oc/hy3-free",                       // Hy3 (reasoning, xhigh) — heaviest, last
           // ── Optional cheap fallbacks (only help if a key is configured) ──
           "gemini-cli/gemini-2.5-flash",
