@@ -6,20 +6,32 @@
   "outputDirectory": ".next",
   "functions": {
     "src/app/api/**/**.js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "memory": 256
     },
     "src/app/api/v1/**/**.js": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "memory": 512
     }
   },
-  "env": {},
+  "env": {
+    "NEXT_DISABLE_TURBOPACK": "true"
+  },
   "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
     {
       "source": "/v1/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "*" }
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Api-Key" }
       ]
     },
     {
@@ -27,34 +39,16 @@
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "*" }
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Api-Key" }
       ]
     }
   ],
   "rewrites": [
-    {
-      "source": "/v1/v1/:path*",
-      "destination": "/api/v1/:path*"
-    },
-    {
-      "source": "/codex/:path*",
-      "destination": "/api/v1/responses"
-    },
-    {
-      "source": "/responses",
-      "destination": "/api/v1/responses"
-    },
-    {
-      "source": "/v1beta/:path*",
-      "destination": "/api/v1beta/:path*"
-    },
-    {
-      "source": "/v1/:path*",
-      "destination": "/api/v1/:path*"
-    },
-    {
-      "source": "/v1",
-      "destination": "/api/v1"
-    }
+    { "source": "/v1/v1/:path*", "destination": "/api/v1/:path*" },
+    { "source": "/codex/:path*", "destination": "/api/v1/responses" },
+    { "source": "/responses", "destination": "/api/v1/responses" },
+    { "source": "/v1beta/:path*", "destination": "/api/v1beta/:path*" },
+    { "source": "/v1/:path*", "destination": "/api/v1/:path*" },
+    { "source": "/v1", "destination": "/api/v1" }
   ]
 }
