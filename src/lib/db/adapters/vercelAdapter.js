@@ -120,6 +120,47 @@ export async function seedFromEnv(adapter) {
     console.warn(`[DB/Vercel] free-first combo refresh skipped: ${e.message}`);
   }
 
+  // ── Capability-routed sibling combos (smart free-first) ───────────────────
+  // `free-first` is the default. When a request carries `tools` (agentic /
+  // subagent turns), `tools-fast` is used instead — it holds only the oc/ models
+  // LIVE-VERIFIED to emit tool_use quickly, so agentic loops never stall. When a
+  // request is a heavy reasoning task with no tools, `reasoning` leads with hy3.
+  // All three are managed (fixed ids) so they re-seed every cold start.
+  const managedCombos = [
+    {
+      id: "vercel-seed-tools-fast",
+      name: "tools-fast",
+      kind: "tools-fast",
+      models: [
+        "oc/nemotron-3.5-lightning-free",
+        "oc/laguna-s-2.1-free",
+        "oc/x-preview-f-free",
+        "oc/hy3-free",
+      ],
+    },
+    {
+      id: "vercel-seed-reasoning",
+      name: "reasoning",
+      kind: "reasoning",
+      models: [
+        "oc/hy3-free",                       // heaviest reasoning first for pure-think
+        "oc/nemotron-3.5-lightning-free",
+        "oc/laguna-s-2.1-free",
+        "oc/x-preview-f-free",
+      ],
+    },
+  ];
+  for (const c of managedCombos) {
+    try {
+      adapter.run(
+        `INSERT OR REPLACE INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
+        [c.id, c.name, c.kind, JSON.stringify(c.models), seedNow, seedNow]
+      );
+    } catch (e) {
+      console.warn(`[DB/Vercel] managed combo ${c.name} refresh skipped: ${e.message}`);
+    }
+  }
+
   const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");
   const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;

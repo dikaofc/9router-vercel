@@ -48,7 +48,7 @@ export async function handleChat(request, clientRawRequest = null) {
       headers: Object.fromEntries(request.headers.entries())
     };
   }
-  const modelStr = body.model;
+  let modelStr = body.model;
 
   // Request summary is emitted as the unified "▶" line in chatCore (has fmt/thinking/account)
 
@@ -88,9 +88,38 @@ export async function handleChat(request, clientRawRequest = null) {
 
   const requiredCapabilities = detectRequiredCapabilities(body);
 
+  // Smart free-first: route the default combo by request shape.
+  //   • tools present → "tools-fast" (only oc/ models verified to emit tool_use
+  //     fast — keeps agentic / subagent turns from stalling).
+  //   • no tools + explicitly heavy reasoning (xhigh/think hint) → "reasoning"
+  //     (hy3-led for pure-think tasks).
+  //   • otherwise → "free-first" (the balanced default).
+  let resolvedModelStr = modelStr;
+  if (modelStr === "free-first") {
+    const hasTools = Array.isArray(body?.tools) && body.tools.length > 0;
+    if (hasTools) {
+      resolvedModelStr = "tools-fast";
+    } else {
+      const wantsReasoning =
+        /xhigh|thinking|reasoning|deep\s*think|o3|o1/i.test(JSON.stringify(body?.thinking ?? "")) ||
+        body?.reasoning_effort === "high" ||
+        /xhigh|reasoning/i.test(String(body?.model || ""));
+      if (wantsReasoning) resolvedModelStr = "reasoning";
+    }
+    // Only swap if the capability combo actually exists (avoid routing to a
+    // missing combo on a not-yet-seeded blob — fall back to free-first).
+    if (resolvedModelStr !== modelStr) {
+      const target = await getComboModels(resolvedModelStr);
+      if (!target) resolvedModelStr = modelStr;
+    }
+  }
+
   // Check if model is a combo (has multiple models with fallback)
-  const comboModels = await getComboModels(modelStr);
+  const comboModels = resolvedModelStr !== modelStr
+    ? await getComboModels(resolvedModelStr)
+    : await getComboModels(modelStr);
   if (comboModels) {
+    modelStr = resolvedModelStr;
     // Check for combo-specific strategy first, fallback to global
     const comboStrategies = settings.comboStrategies || {};
     const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
