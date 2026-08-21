@@ -76,9 +76,20 @@ async function callChatDirectly(model, maxTokens = 1024) {
     messages: [{ role: "user", content: "hi" }],
   };
 
+  // Pass API key + CLI token so handleChat's requireApiKey check passes.
+  // Without this, the dashboard Test button always 401 on Vercel when
+  // requireApiKey=true because the fake request had no credentials.
+  const headers = { "Content-Type": "application/json" };
+  try {
+    const keys = await getApiKeys();
+    const apiKey = keys.find((k) => k.isActive !== false)?.key;
+    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  } catch {}
+  headers["x-9r-cli-token"] = await getConsistentMachineId(CLI_TOKEN_SALT);
+
   const fakeRequest = new Request("http://localhost/api/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
 
