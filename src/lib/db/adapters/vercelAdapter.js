@@ -93,22 +93,24 @@ export async function seedFromEnv(adapter) {
         "free-first",
         "free-first",
         JSON.stringify([
-          // ── OpenCode Free: the only zero-key chat provider. Every model below
-          // was code-benchmarked (correct debounce() output, no looping/garbage).
-          // FAST-first so long /compact-style prompts finish under the 300s Vercel
-          // limit; xhigh reasoning (hy3) last. Cascade (fallback + "model is
+          // ── OpenCode Free: the ONLY zero-key chat provider on Vercel. Every
+          // model below was LIVE-VERIFIED to (a) return 200, (b) emit tool_use
+          // for agentic calls, and (c) stay fast. Cascade (fallback + "model is
           // unavailable" fall-through) skips dead/throttled models.
-          // EXCLUDED: deepseek-v4-flash-free (retired, 400 unavailable),
-          // mimo-v2.5-free + big-pickle (sustained 429, dead on free tier). ──
-          "oc/nemotron-3.5-lightning-free",    // Nemotron 3.5 Lightning (reasoning, fast)
-          "oc/muse-spark-1.2-contributor-free",// Muse Spark 1.2 Contributor (verified coding)
-          "oc/laguna-s-2.1-free",              // Laguna S 2.1 (reasoning, verified)
-          "oc/nemotron-3-ultra-free",          // Nemotron 3 Ultra (reasoning, verified)
-          "oc/x-preview-f-free",               // X-Preview (reasoning, verified)
-          "oc/hy3-free",                       // Hy3 (reasoning, xhigh) — heaviest, last
-          // ── Optional cheap fallbacks (only help if a key is configured) ──
-          "gemini-cli/gemini-2.5-flash",
-          "groq/llama-3.3-70b-versatile",
+          // ORDERED FAST-FIRST: a long agentic / /compact turn must finish well
+          // under the 300s Vercel Hobby limit; the heaviest reasoning model (hy3)
+          // is last so it only runs when the fast ones are exhausted.
+          // EXCLUDED (live-tested broken):
+          //   oc/nemotron-3-ultra-free  → consistent 504 (~30s dead upstream)
+          //   oc/muse-spark-1.2-contributor-free → 200 but emits NO tool_call
+          //   gemini-cli/gemini-2.5-flash  → 404 (needs API key, not configured)
+          //   groq/llama-3.3-70b-versatile → 404 (needs API key, not configured)
+          //   deepseek-v4-flash-free (retired, 400 unavailable),
+          //   mimo-v2.5-free + big-pickle (sustained 429, dead on free tier). ──
+          "oc/nemotron-3.5-lightning-free",    // fast, emits tool_use, verified
+          "oc/laguna-s-2.1-free",              // fast, emits tool_use, verified
+          "oc/x-preview-f-free",               // emits tool_use, verified
+          "oc/hy3-free",                       // reasoning xhigh — heaviest, last
         ]),
         seedNow,
         seedNow,

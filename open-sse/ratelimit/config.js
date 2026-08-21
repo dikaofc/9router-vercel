@@ -99,4 +99,14 @@ export const PERMANENT_PHRASES = [
 export const FALLTHROUGH_PHRASES = [
   "model is unavailable",
   "model unavailable",
+  // A missing/empty credential (e.g. "No active credentials for provider: groq")
+  // is a config gap, not a bad request. If a combo contains a provider the user
+  // hasn't keyed yet, we must fall through to the next candidate instead of
+  // dropping the whole combo — otherwise an agentic subagent turn stalls waiting
+  // on a model that can never answer (the "bakes then stops" symptom).
+  "no active credentials",
+  "no credentials",
+  "missing api key",
+  "api key is required",
+  "authentication required",
 ];
