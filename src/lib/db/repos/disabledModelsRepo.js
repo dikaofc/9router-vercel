@@ -1,5 +1,6 @@
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { flushCurrentAdapter } from "../requestFlush.js";
 
 const SCOPE = "disabledModels";
 
@@ -30,6 +31,7 @@ export async function disableModels(providerAlias, ids) {
       [SCOPE, providerAlias, stringifyJson(merged)]
     );
   });
+  await flushCurrentAdapter();
 }
 
 export async function enableModels(providerAlias, ids) {
@@ -53,4 +55,5 @@ export async function enableModels(providerAlias, ids) {
       );
     }
   });
+  await flushCurrentAdapter();
 }

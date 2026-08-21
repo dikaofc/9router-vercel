@@ -162,6 +162,34 @@ export async function seedFromEnv(adapter) {
   } catch (e) {
     console.warn(`[DB/Vercel] default-off seed skipped: ${e.message}`);
   }
+
+  // Seed a pre-configured "free-first" combo so multi-device users can point
+  // their agents at ONE model id (`free-first`) that round-robins / failovers
+  // across free providers. Skips re-insert if already present (e.g. re-seeded).
+  try {
+    const existing = adapter.get("SELECT id FROM combos WHERE name = 'free-first'");
+    if (!existing) {
+      adapter.run(
+        `INSERT INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
+        [
+          "vercel-seed-free-first",
+          "free-first",
+          "free-first",
+          JSON.stringify([
+            "ocg/deepseek-v4-flash-free",
+            "gemini-cli/gemini-2.5-flash",
+            "groq/llama-3.3-70b-versatile",
+            "gemini/gemini-3.5-flash-lite",
+          ]),
+          now,
+          now,
+        ]
+      );
+      console.log("[DB/Vercel] Seeded free-first combo (cross-provider failover)");
+    }
+  } catch (e) {
+    console.warn(`[DB/Vercel] free-first combo seed skipped: ${e.message}`);
+  }
 }
 
 export async function createVercelAdapter() {

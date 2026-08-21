@@ -336,7 +336,11 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       // (no point retrying other models). 429/5xx/401 are provider problems →
       // fall through to the next model in the combo.
       const { action } = classifyError({ status: result.status, errorText });
-      const shouldFallback = action !== "drop";
+      // A combo model with no credentials yet should be SKIPPED (fall through
+      // to the next provider), not kill the whole combo. "No active credentials"
+      // returns 404 which classifyError treats as a permanent drop — override it.
+      const noCreds = /no active credential|no credential/i.test(errorText);
+      const shouldFallback = action !== "drop" || noCreds;
       const { cooldownMs } = shouldFallback ? checkFallbackError(result.status, errorText, 0) : { cooldownMs: 0 };
 
       if (!shouldFallback) {

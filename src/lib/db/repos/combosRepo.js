@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { flushCurrentAdapter } from "../requestFlush.js";
 
 function rowToCombo(row) {
   if (!row) return null;
@@ -47,6 +48,7 @@ export async function createCombo(data) {
     `INSERT INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
     [combo.id, combo.name, combo.kind, stringifyJson(combo.models), combo.createdAt, combo.updatedAt]
   );
+  await flushCurrentAdapter();
   return combo;
 }
 
@@ -63,11 +65,13 @@ export async function updateCombo(id, data) {
     );
     result = merged;
   });
+  await flushCurrentAdapter();
   return result;
 }
 
 export async function deleteCombo(id) {
   const db = await getAdapter();
   const res = db.run(`DELETE FROM combos WHERE id = ?`, [id]);
+  await flushCurrentAdapter();
   return (res?.changes ?? 0) > 0;
 }
