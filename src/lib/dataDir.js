@@ -11,7 +11,16 @@ function defaultDir() {
   if (process.platform === "win32") {
     return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), APP_NAME);
   }
-  return path.join(os.homedir(), `.${APP_NAME}`);
+  // Termux/Android: use home dir which is writable
+  const home = os.homedir();
+  // If home is / (root), use /data/data/com.termux/files/home as fallback
+  if (home === "/") {
+    const termuxHome = "/data/data/com.termux/files/home";
+    try {
+      if (fs.existsSync(termuxHome)) return path.join(termuxHome, `.${APP_NAME}`);
+    } catch {}
+  }
+  return path.join(home, `.${APP_NAME}`);
 }
 
 export function getDataDir() {

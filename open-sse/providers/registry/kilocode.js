@@ -14,6 +14,7 @@ export default {
     },
   },
   category: "oauth",
+  defaultEnabled: false,
   transport: {
     baseUrl: "https://api.kilo.ai/api/openrouter/chat/completions",
     headers: {},

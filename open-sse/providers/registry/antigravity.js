@@ -17,6 +17,7 @@ export default {
     deprecationNotice: "RISK_NOTICE",
   },
   category: "oauth",
+  defaultEnabled: false,
   serviceKinds: ["llm", "image"],
   transport: {
     baseUrls: [ANTIGRAVITY_IDE_BASE_URL],

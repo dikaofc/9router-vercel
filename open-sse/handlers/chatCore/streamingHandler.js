@@ -122,10 +122,10 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
 /**
  * Build onStreamComplete callback for streaming usage tracking.
  */
-export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log }) {
+export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log, onRequestFlush }) {
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-  const onStreamComplete = (contentObj, usage, ttftAt) => {
+  const onStreamComplete = async (contentObj, usage, ttftAt) => {
     const latency = {
       ttft: ttftAt ? ttftAt - requestStartTime : Date.now() - requestStartTime,
       total: Date.now() - requestStartTime
@@ -149,6 +149,9 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
 
     // Persist stream usage to DB (no console line; the "📊 done" line below is authoritative)
     saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, label: "STREAM USAGE", silent: true });
+    // Flush remote writes (Upstash/Supabase/KV) before the lambda freezes so
+    // usage + toggles survive and aren't lost on Vercel. Fail-open.
+    if (typeof onRequestFlush === "function") { try { await onRequestFlush(); } catch {} }
     if (log?.line) log.line(reqTag, "📊", formatDoneLine({ usage, latency }));
   };
 

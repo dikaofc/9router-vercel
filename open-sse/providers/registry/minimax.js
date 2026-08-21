@@ -15,6 +15,7 @@ export default {
     },
   },
   category: "apikey",
+  defaultEnabled: false,
   transport: {
     baseUrl: "https://api.minimax.io/anthropic/v1/messages",
     format: "claude",

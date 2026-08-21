@@ -8,6 +8,8 @@ import {
   isValidApiKey,
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
+import { getAdapter } from "@/lib/db/driver.js";
+import { requestFlush } from "@/lib/db/requestFlush.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
@@ -284,6 +286,11 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       pxpipeEnabled: !!chatSettings.pxpipeEnabled,
       pxpipeMinChars: chatSettings.pxpipeMinChars,
       pxpipeTimeoutMs: chatSettings.pxpipeTimeoutMs,
+      // Flush pending remote writes (usage/settings) before the lambda freezes —
+      // guarantees the Token-Saver-off / usage-lost data-loss bug can't recur.
+      onRequestFlush: async () => {
+        try { await requestFlush(await getAdapter()); } catch {}
+      },
       // Lazily warms the in-process module on first use; null when not installed (fail-open)
       pxpipeTransform: chatSettings.pxpipeEnabled ? await getPxpipeTransform() : null,
       onPxpipeEvent: appendPxpipeEvent,

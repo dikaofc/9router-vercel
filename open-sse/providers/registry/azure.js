@@ -13,6 +13,7 @@ export default {
     },
   },
   category: "apikey",
+  defaultEnabled: false,
   hasProviderSpecificData: true,
   transport: {
     baseUrl: "",

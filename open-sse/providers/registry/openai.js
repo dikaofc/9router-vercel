@@ -13,6 +13,7 @@ export default {
     },
   },
   category: "apikey",
+  defaultEnabled: false,
   thinkingConfig: {
     options: [
       "auto",

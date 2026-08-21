@@ -20,6 +20,7 @@ export default {
     },
   },
   category: "oauth",
+  defaultEnabled: false,
   thinkingConfig: {
     options: [
       "auto",

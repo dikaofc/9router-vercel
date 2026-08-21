@@ -17,6 +17,7 @@ export default {
     },
   },
   category: "apikey",
+  defaultEnabled: false,
   transport: {
     baseUrl: "https://aiplatform.googleapis.com",
   },

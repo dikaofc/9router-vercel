@@ -4,7 +4,6 @@
  * State is lost between serverless invocations (acceptable for free-tier proxy).
  */
 import initSqlJs from "sql.js";
-import { execFileSync } from "node:child_process";
 import { PRAGMA_SQL } from "../schema.js";
 
 let SQL = null;
@@ -19,10 +18,9 @@ async function loadSql() {
 // Vercel KV / Upstash Redis store so dashboard-created API keys, provider connections,
 // settings, combos, etc. survive cold starts AND are shared across serverless instances.
 // Enable by setting KV_REST_API_URL + KV_REST_API_TOKEN (Vercel KV) or
-// UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (Upstash). Persistence is synchronous
-// (via curl) so the existing synchronous adapter interface is unchanged and every write is
-// durable before the serverless function returns. If KV is not configured (or curl is
-// unavailable) it degrades gracefully to the previous ephemeral in-memory behaviour.
+// UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (Upstash). Persistence is async
+// (via fetch) with debounced coalescing so writes are durable before function return.
+// If KV is not configured it degrades gracefully to ephemeral in-memory behaviour.
 const DB_KV_KEY = "9router:db";
 
 function detectKv() {
@@ -32,29 +30,33 @@ function detectKv() {
   return null;
 }
 
-function kvRead(kv) {
-  const out = execFileSync(
-    "curl",
-    ["-s", "--max-time", "8", "-H", `Authorization: Bearer ${kv.token}`, `${kv.url}/get/${encodeURIComponent(DB_KV_KEY)}`],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
-  );
-  const parsed = JSON.parse(out);
+async function kvRead(kv) {
+  const res = await fetch(`${kv.url}/get/${encodeURIComponent(DB_KV_KEY)}`, {
+    headers: { Authorization: `Bearer ${kv.token}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) return null;
+  const parsed = await res.json();
   if (parsed && typeof parsed.result === "string" && parsed.result.length) {
     return Uint8Array.from(Buffer.from(parsed.result, "base64"));
-  }
-  return null;
+  }  return null;
 }
 
-function kvWrite(kv, bytes) {
+async function kvWrite(kv, bytes) {
   const b64 = Buffer.from(bytes).toString("base64");
-  execFileSync(
-    "curl",
-    ["-s", "--max-time", "10", "-X", "POST", "-H", `Authorization: Bearer ${kv.token}`, "-H", "Content-Type: text/plain", "--data-binary", "@-", `${kv.url}/set/${encodeURIComponent(DB_KV_KEY)}`],
-    { input: b64, stdio: ["pipe", "ignore", "ignore"] }
-  );
+  const res = await fetch(`${kv.url}/set/${encodeURIComponent(DB_KV_KEY)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${kv.token}`,
+      "Content-Type": "text/plain",
+    },
+    body: b64,
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`KV write failed: HTTP ${res.status}`);
 }
 
-export function seedFromEnv(adapter) {
+export async function seedFromEnv(adapter) {
   const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");
   const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;
@@ -68,7 +70,7 @@ export function seedFromEnv(adapter) {
     "MISTRAL", "COHERE", "TOGETHER", "FIREWORKS", "CEREBRAS",
     "NVIDIA", "SILICONFLOW", "NEBIUS", "CHUTES", "HYPERBOLIC",
     "PERPLEXITY", "GLM", "KIMI", "MINIMAX", "OPENROUTER",
-    "VERTEX", "KIRO", "OPENCODE", "KIMCHI", "CURSOR",
+    "VERTEX", "KIRO", "OPENCODE", "OPENCODE_GO", "KIMCHI", "CURSOR",
     "CODEROUTER", "AGENTROUTER", "REQUESTY", "SENSENOVA",
     "YUANBAO", "AGNES", "CHEAPERINFERENCE",
   ];
@@ -156,6 +158,30 @@ export function seedFromEnv(adapter) {
     );
   }
 
+  // Free-first: providers flagged `defaultEnabled: false` in their registry
+  // entry (expensive / oauth-subscription) are hidden by default on every cold
+  // start so a fresh Vercel deploy doesn't auto-expose paid plans. They stay
+  // fully usable — re-enable them in the dashboard (clearing disabledModels).
+  try {
+    const { PROVIDER_MODELS } = await import("open-sse/config/providerModels.js");
+    const REGISTRY = (await import("open-sse/providers/registry/index.js")).default;
+    const defaultOffAliases = REGISTRY
+      .filter((e) => e && e.defaultEnabled === false)
+      .map((e) => e.alias || e.id);
+    for (const alias of defaultOffAliases) {
+      const ids = (PROVIDER_MODELS[alias] || []).map((m) => m.id);
+      adapter.run(
+        `INSERT INTO kv(scope, key, value) VALUES('disabledModels', ?, ?) ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`,
+        [alias, JSON.stringify(ids)]
+      );
+    }
+    if (defaultOffAliases.length) {
+      console.log(`[DB/Vercel] Default-off providers seeded (hidden until enabled): ${defaultOffAliases.length}`);
+    }
+  } catch (e) {
+    console.warn(`[DB/Vercel] default-off seed skipped: ${e.message}`);
+  }
+
   console.log(`[DB/Vercel] Seeded ${connections.length} provider connections from env vars`);
 }
 
@@ -166,7 +192,7 @@ export async function createVercelAdapter() {
   let db;
   if (kv) {
     try {
-      const bytes = kvRead(kv);
+      const bytes = await kvRead(kv);
       if (bytes) db = new SQLLib.Database(bytes);
     } catch (e) {
       console.warn(`[DB/Vercel] Failed to load DB from KV (starting fresh): ${e.message}`);
@@ -182,19 +208,37 @@ export async function createVercelAdapter() {
     run, get, all, exec, transaction, close, raw: db,
   };
 
-  function persist() {
+  let _persistPending = false;
+  let _persistTimer = null;
+  let _lastPersistError = null;
+  const PERSIST_DEBOUNCE_MS = 200;
+
+  async function persistNow() {
     if (!adapter._kv || adapter._seeding) return;
     try {
-      kvWrite(adapter._kv, db.export());
+      await kvWrite(adapter._kv, db.export());
+      _lastPersistError = null;
     } catch (e) {
+      _lastPersistError = e.message;
       console.warn(`[DB/Vercel] Failed to persist DB to KV: ${e.message}`);
     }
   }
-  adapter._persist = persist;
+  adapter._persist = persistNow;
 
-  // Persist synchronously on every mutation so state is durable before the
-  // serverless function returns (no request-teardown hook required).
-  function scheduleSave() { persist(); }
+  // Debounced persist: coalesce multiple rapid writes into one KV push.
+  // This is much faster than per-mutation synchronous curl.
+  function scheduleSave() {
+    if (!adapter._kv || adapter._seeding) return;
+    _persistPending = true;
+    if (_persistTimer) return;
+    _persistTimer = setTimeout(() => {
+      _persistTimer = null;
+      if (_persistPending) {
+        _persistPending = false;
+        persistNow().catch(() => {});
+      }
+    }, PERSIST_DEBOUNCE_MS);
+  }
 
   function paramsObj(params) {
     if (!params || (Array.isArray(params) && params.length === 0)) return undefined;
@@ -256,7 +300,9 @@ export async function createVercelAdapter() {
   // Without re-sync, a write on instance A is invisible to instance B until
   // B's cold start → settings/toggles/proxy-pools "revert" and usage reads 0.
   // We re-pull the blob (throttled, byte-compared) before each request.
-  const SYNC_TTL_MS = 2000;
+  // Cross-instance re-sync: throttle to every 5s to reduce KV reads while
+  // still keeping instances reasonably in sync.
+  const SYNC_TTL_MS = 5000;
   let _lastSyncCheck = 0;
   let _syncPromise = null;
   async function syncRemote(force = false) {
@@ -266,7 +312,7 @@ export async function createVercelAdapter() {
     if (_syncPromise) { try { await _syncPromise; } catch {} return; }
     _syncPromise = (async () => {
       try {
-        const bytes = kvRead(adapter._kv);
+        const bytes = await kvRead(adapter._kv);
         if (!bytes) { _lastSyncCheck = Date.now(); return; }
         const current = db.export();
         if (bytes.length === current.length && bytes.every((b, i) => b === current[i])) {
@@ -287,6 +333,23 @@ export async function createVercelAdapter() {
     try { await _syncPromise; } finally { _syncPromise = null; }
   }
   adapter._syncRemote = syncRemote;
+
+  // Flush pending writes synchronously. Awaited before the lambda returns (see
+  // requestFlush.js) and on shutdown — the debounced timer may not have fired
+  // yet, and an async-only write risks being frozen by Vercel before it lands.
+  async function flush() {
+    if (_persistTimer) { clearTimeout(_persistTimer); _persistTimer = null; }
+    if (_persistPending) {
+      _persistPending = false;
+      await persistNow();
+    }
+  }
+  adapter._flush = flush;
+  adapter._lastPersistError = () => _lastPersistError;
+
+  process.on("beforeExit", () => { flush(); });
+  process.on("SIGINT", () => { flush().then(() => process.exit(0)).catch(() => process.exit(0)); });
+  process.on("SIGTERM", () => { flush().then(() => process.exit(0)).catch(() => process.exit(0)); });
 
   return adapter;
 }

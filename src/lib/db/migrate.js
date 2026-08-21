@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { LEGACY_FILES, DB_DIR } from "./paths.js";
+
+const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
 import { TABLES, buildCreateTableSql, SCHEMA_VERSION } from "./schema.js";
 import { MIGRATIONS, latestVersion } from "./migrations/index.js";
 import { getMetaSync, setMetaSync } from "./helpers/metaStore.js";
@@ -222,7 +224,8 @@ export async function runMigrationOnce(adapter) {
   const fresh = isFreshDb(adapter);
 
   // Prune stale backups every boot so old oversized backups shrink to KEEP.
-  pruneOldBackups();
+  // Skip on Vercel (ephemeral /tmp, no point backing up)
+  if (!IS_VERCEL) pruneOldBackups();
 
   // Bootstrap _meta so we can read the stored backup schema version below
   // (runVersionedMigrations also ensures this, but we need it earlier here).
@@ -232,7 +235,7 @@ export async function runMigrationOnce(adapter) {
   // A lightweight backup is taken BEFORE any schema mutation below.
   const storedSchemaVer = parseInt(getMetaSync(adapter, "backupSchemaVersion", "0"), 10) || 0;
   const schemaChanging = !fresh && storedSchemaVer < SCHEMA_VERSION;
-  if (schemaChanging) {
+  if (schemaChanging && !IS_VERCEL) {
     try {
       const backupDir = makeBackupDir(`schema-${storedSchemaVer}-to-${SCHEMA_VERSION}`);
       backupDbLite(adapter, backupDir);

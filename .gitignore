@@ -86,3 +86,11 @@ graphify-out/*
 .codegraph/
 .PR/
 .next-analyze/*
+
+# --- 9router-vercel local junk (not committed) ---
+build.log
+dev.log
+dev-output.log
+run.sh
+server.pid
+*.output

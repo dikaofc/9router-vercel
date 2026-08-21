@@ -146,18 +146,29 @@ export async function createSupabaseAdapter() {
   let _syncPromise = null;
   let loadFailed = false;
   let loadError = null;
-  try {
-    await ensureBucket(sup);
-    const loaded = await sbRead(sup);
-    if (loaded) { db = new SQLLib.Database(loaded.bytes); _etag = loaded.etag; }
-    _lastSyncCheck = Date.now();
-  } catch (e) {
-    // Read failed (network / auth — NOT a clean 404 first-run). Starting fresh
-    // would let this instance overwrite the real blob on the next persist, so
-    // go read-only instead: never clobber remote data we couldn't load.
-    loadFailed = true;
-    loadError = e.message;
-    console.warn(`[DB/Supabase] Cold-start load failed, running READ-ONLY: ${e.message}`);
+  // Retry a transient cold-start read before demoting to read-only: a single
+  // network/auth blip must not permanently disable persistence for the lambda's
+  // whole life (that silently drops every later write — the "settings revert" bug).
+  let loaded = null;
+  for (let attempt = 0; attempt <= 2 && !loaded; attempt++) {
+    try {
+      await ensureBucket(sup);
+      loaded = await sbRead(sup);
+      break;
+    } catch (e) {
+      loadError = e.message;
+      if (attempt < 2) {
+        console.warn(`[DB/Supabase] Cold-start load attempt ${attempt + 1} failed, retrying: ${e.message}`);
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+      }
+    }
+  }
+  if (loaded) {
+    try { db = new SQLLib.Database(loaded.bytes); _etag = loaded.etag; }
+    catch (e) { loadFailed = true; loadError = e.message; }
+  }
+  if (loadFailed) {
+    console.warn(`[DB/Supabase] Cold-start load failed after retries, running READ-ONLY: ${loadError}`);
   }
   if (!db) db = new SQLLib.Database();
   db.exec(PRAGMA_SQL);
@@ -169,6 +180,7 @@ export async function createSupabaseAdapter() {
     _failed: false,
     _readonly: loadFailed,
     _lastError: loadError,
+    _lastSyncError: null,
     _seeding: false,
     run,
     get,
@@ -179,19 +191,44 @@ export async function createSupabaseAdapter() {
     raw: db,
   };
 
-  // Synchronous (curl) so the write completes before the serverless function
-  // returns — see sbWriteSync. On failure, mark _failed so we stop hammering
-  // Supabase and just stay in-memory for the rest of this instance's life.
-  function persist() {
+  // Debounced persist: coalesce the many mutations inside one request (token
+  // persist, clearAccountError, saveUsageStats, settings toggles) into a single
+  // synchronous blob upload per window. Previously persist() ran a child `node`
+  // process on EVERY run()/exec() — the dominant Vercel latency source and a
+  // silent in-memory fallback when the 20s upload timed out.
+  const PERSIST_DEBOUNCE_MS = 250;
+  let _persistTimer = null;
+  let _persistPending = false;
+  function persistNow() {
     if (adapter._failed || adapter._readonly || adapter._seeding || !adapter._sup) return;
     try {
       sbWriteSync(adapter._sup, db.export());
+      adapter._lastError = null;
+      adapter._lastSyncError = null;
     } catch (e) {
       adapter._failed = true;
       adapter._lastError = e.message;
       console.warn(`[DB/Supabase] persist failed — falling back to in-memory: ${e.message}`);
     }
   }
+  function persist() {
+    if (adapter._failed || adapter._readonly || adapter._seeding || !adapter._sup) return;
+    _persistPending = true;
+    if (_persistTimer) return;
+    _persistTimer = setTimeout(() => {
+      _persistTimer = null;
+      if (_persistPending) {
+        _persistPending = false;
+        persistNow();
+      }
+    }, PERSIST_DEBOUNCE_MS);
+  }
+  // Synchronous flush — awaited before the lambda returns (see requestFlush.js)
+  // so a write near end of request (usage) is never lost on freeze.
+  adapter._flush = function flush() {
+    if (_persistTimer) { clearTimeout(_persistTimer); _persistTimer = null; }
+    if (_persistPending) { _persistPending = false; persistNow(); }
+  };
   adapter._persist = persist;
 
   function paramsObj(params) {
@@ -305,8 +342,10 @@ export async function createSupabaseAdapter() {
         try { old.close(); } catch {}
         _etag = res.headers.get("etag");
         _lastSyncCheck = Date.now();
+        adapter._lastSyncError = null;
       } catch (e) {
         _lastSyncCheck = Date.now();
+        adapter._lastSyncError = e.message;
         console.warn(`[DB/Supabase] re-sync skipped: ${e.message}`);
       }
     })();

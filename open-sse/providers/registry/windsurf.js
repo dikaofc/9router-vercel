@@ -14,6 +14,7 @@ export default {
     notice: { signupUrl: "https://windsurf.com" },
   },
   category: "oauth",
+  defaultEnabled: false,
   authType: "oauth",
   hasOAuth: true,
   authModes: ["oauth", "apikey"],

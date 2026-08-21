@@ -15,6 +15,7 @@ export default {
     },
   },
   category: "oauth",
+  defaultEnabled: false,
   authType: "oauth",
   hasOAuth: true,
 
