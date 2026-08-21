@@ -108,13 +108,13 @@ async function hasValidApiKey(request) {
 }
 
 async function canAccessPublicLlmApi(request) {
-  // If the operator has turned API-key auth OFF (Settings → Security), the
-  // public LLM API is open to any caller — this is the normal mode for a
-  // personal deployment whose CLI agents call /v1 directly without a
-  // registered key. The requireApiKey flag is the single source of truth,
-  // also enforced inside the chat/embeddings/etc. handlers.
+  // Default-OPEN: the public LLM API is reachable by anyone UNLESS the operator
+  // has explicitly turned API-key auth ON (Settings → Security → requireApiKey).
+  // This is the intended mode for a personal deployment whose CLI agents call
+  // /v1 directly without a registered key — a transient settings-load failure
+  // must NOT slam the API shut and 401 every agent.
   const settings = await loadSettings();
-  if (settings && settings.requireApiKey === false) return true;
+  if (!settings || settings.requireApiKey !== true) return true;
   if (isLocalRequest(request)) return true;
   if (await hasValidCliToken(request)) return true;
   return await hasValidApiKey(request);
