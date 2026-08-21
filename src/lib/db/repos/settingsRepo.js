@@ -122,6 +122,11 @@ export async function updateSettings(updates) {
       [stringifyJson(next)],
     );
   });
+  // Flush synchronously so the write lands in Upstash/Supabase BEFORE the
+  // lambda freezes — otherwise the debounced timer may never fire and the
+  // setting reverts on the next cold start (the "Token Saver off again" bug).
+  if (typeof db._flush === "function") { try { db._flush(); } catch {} }
+  else if (typeof db._persist === "function") { try { await db._persist(); } catch {} }
   return mergeWithDefaults(next);
 }
 

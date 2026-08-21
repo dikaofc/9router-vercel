@@ -44,26 +44,37 @@ async function redisGet(up, key) {
   });
   if (!res.ok) return null;
   const parsed = await res.json();
-  if (parsed && typeof parsed.result === "string" && parsed.result.length) {
-    return Uint8Array.from(Buffer.from(parsed.result, "base64"));
+  if (!(parsed && typeof parsed.result === "string" && parsed.result.length)) return null;
+  // Primary path: blob was written base64-encoded (matches redisSetSync).
+  const b64 = Buffer.from(parsed.result, "base64");
+  // Guard against a legacy/corrupt blob that was stored as raw bytes: a valid
+  // SQLite file starts with "SQLite format 3". If base64-decoded bytes don't,
+  // try the raw string bytes instead so we never hard-fail the adapter.
+  const isSqlite = b64.length >= 16 && b64.slice(0, 15).toString("latin1") === "SQLite format 3";
+  if (isSqlite) return new Uint8Array(b64);
+  const raw = Buffer.from(parsed.result, "latin1");
+  if (raw.length >= 16 && raw.slice(0, 15).toString("latin1") === "SQLite format 3") {
+    return new Uint8Array(raw);
   }
-  return null;
+  return null; // neither variant is a valid DB → caller starts fresh
 }
 
 // Synchronous Redis SET via child node process (see vercelAdapter kvWriteSync /
 // supabaseAdapter sbWriteSync for why sync is required on Vercel).
 function redisSetSync(up, key, bytes) {
-  const tmpFile = `/tmp/9router/db/.upstash-upload-${process.pid}.bin`;
-  fs.mkdirSync("/tmp/9router/db", { recursive: true });
-  fs.writeFileSync(tmpFile, Buffer.from(bytes));
+  // Base64-encode the binary SQLite blob before sending. Upstash REST stores
+  // the body verbatim, and redisGet() base64-decodes on read — so the write
+  // MUST be base64 too, otherwise the read yields garbage ("file is not a
+  // database") and the whole adapter falls back to in-memory (data loss).
+  const b64 = Buffer.from(bytes).toString("base64");
   const url = `${up.url}/set/${encodeURIComponent(key)}`;
   const script = `
-    const fs = require("fs");
+    const b64 = process.argv[3];
     (async () => {
       const res = await fetch(process.argv[1], {
         method: "POST",
         headers: { Authorization: "Bearer " + process.argv[2], "Content-Type": "text/plain" },
-        body: fs.readFileSync(process.argv[3]),
+        body: b64,
       });
       if (!res.ok) { console.error("HTTP " + res.status); process.exit(1); }
     })().catch((e) => { console.error(e.message); process.exit(1); });
@@ -71,11 +82,11 @@ function redisSetSync(up, key, bytes) {
   try {
     execFileSync(
       process.execPath,
-      ["-e", script, url, up.token, tmpFile],
+      ["-e", script, url, up.token, b64],
       { stdio: ["ignore", "ignore", "pipe"], timeout: 10000 }
     );
-  } finally {
-    try { fs.unlinkSync(tmpFile); } catch {}
+  } catch (e) {
+    throw e;
   }
 }
 
