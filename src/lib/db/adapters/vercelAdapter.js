@@ -78,6 +78,43 @@ function kvWriteSync(kv, bytes) {
 }
 
 export async function seedFromEnv(adapter) {
+  const seedNow = new Date().toISOString();
+
+  // ── Managed combo (refreshed every cold start) ─────────────────────────────
+  // The "free-first" smart combo is 9Router-managed: we re-upsert it on EVERY
+  // cold start (not just empty-DB boots) so the user always gets the latest
+  // curated free model list without manual migration. It uses a FIXED id, so
+  // it replaces the old list and never collides with user-created combos.
+  try {
+    adapter.run(
+      `INSERT OR REPLACE INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
+      [
+        "vercel-seed-free-first",
+        "free-first",
+        "free-first",
+        JSON.stringify([
+          // ── OpenCode Free: reasoning-capable, no-auth, smartest-first ──
+          "oc/hy3-free",                       // Hy3 (reasoning, xhigh)
+          "oc/x-preview-f-free",               // X-Preview (reasoning)
+          "oc/laguna-s-2.1-free",              // Laguna S 2.1 (reasoning)
+          "oc/nemotron-3-ultra-free",          // Nemotron 3 Ultra (reasoning)
+          "oc/nemotron-3.5-lightning-free",    // Nemotron 3.5 Lightning (reasoning, fast)
+          "oc/deepseek-v4-flash-free",         // DeepSeek V4 Flash (reasoning, fast)
+          "oc/muse-spark-1.2-contributor-free",// Muse Spark 1.2 Contributor
+          "oc/mimo-v2.5-free",                 // MiMo V2.5
+          "oc/big-pickle",                     // Big Pickle
+          // ── Cross-provider cheap fallbacks (last resort) ──
+          "gemini-cli/gemini-2.5-flash",
+          "groq/llama-3.3-70b-versatile",
+        ]),
+        seedNow,
+        seedNow,
+      ]
+    );
+  } catch (e) {
+    console.warn(`[DB/Vercel] free-first combo refresh skipped: ${e.message}`);
+  }
+
   const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");
   const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;
@@ -161,34 +198,6 @@ export async function seedFromEnv(adapter) {
     }
   } catch (e) {
     console.warn(`[DB/Vercel] default-off seed skipped: ${e.message}`);
-  }
-
-  // Seed a pre-configured "free-first" combo so multi-device users can point
-  // their agents at ONE model id (`free-first`) that round-robins / failovers
-  // across free providers. Skips re-insert if already present (e.g. re-seeded).
-  try {
-    const existing = adapter.get("SELECT id FROM combos WHERE name = 'free-first'");
-    if (!existing) {
-      adapter.run(
-        `INSERT INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
-        [
-          "vercel-seed-free-first",
-          "free-first",
-          "free-first",
-          JSON.stringify([
-            "ocg/deepseek-v4-flash-free",
-            "gemini-cli/gemini-2.5-flash",
-            "groq/llama-3.3-70b-versatile",
-            "gemini/gemini-3.5-flash-lite",
-          ]),
-          now,
-          now,
-        ]
-      );
-      console.log("[DB/Vercel] Seeded free-first combo (cross-provider failover)");
-    }
-  } catch (e) {
-    console.warn(`[DB/Vercel] free-first combo seed skipped: ${e.message}`);
   }
 }
 
