@@ -93,19 +93,22 @@ export async function seedFromEnv(adapter) {
         "free-first",
         "free-first",
         JSON.stringify([
-          // ── OpenCode Free: reasoning-capable, no-auth, smartest-first ──
+          // ── OpenCode Free: no-auth. FAST-first so long /compact-style prompts
+          // finish well under the 300s Vercel function limit (xhigh reasoning
+          // models like hy3 can run many minutes and trip ECONNRESET on freeze).
+          // Cascade (fallback strategy) still covers any 429/5xx. ──
+          "oc/deepseek-v4-flash-free",         // DeepSeek V4 Flash (reasoning, fast)
+          "oc/nemotron-3.5-lightning-free",    // Nemotron 3.5 Lightning (reasoning, fast)
+          "oc/muse-spark-1.2-contributor-free",// Muse Spark 1.2 Contributor
+          "oc/mimo-v2.5-free",                 // MiMo V2.5
+          "oc/big-pickle",                     // Big Pickle
+          "gemini-cli/gemini-2.5-flash",       // cross-provider cheap
+          // ── Smarter reasoning models LAST (used only if fast ones are throttled) ──
           "oc/hy3-free",                       // Hy3 (reasoning, xhigh)
           "oc/x-preview-f-free",               // X-Preview (reasoning)
           "oc/laguna-s-2.1-free",              // Laguna S 2.1 (reasoning)
           "oc/nemotron-3-ultra-free",          // Nemotron 3 Ultra (reasoning)
-          "oc/nemotron-3.5-lightning-free",    // Nemotron 3.5 Lightning (reasoning, fast)
-          "oc/deepseek-v4-flash-free",         // DeepSeek V4 Flash (reasoning, fast)
-          "oc/muse-spark-1.2-contributor-free",// Muse Spark 1.2 Contributor
-          "oc/mimo-v2.5-free",                 // MiMo V2.5
-          "oc/big-pickle",                     // Big Pickle
-          // ── Cross-provider cheap fallbacks (last resort) ──
-          "gemini-cli/gemini-2.5-flash",
-          "groq/llama-3.3-70b-versatile",
+          "groq/llama-3.3-70b-versatile",      // cross-provider cheap fallback
         ]),
         seedNow,
         seedNow,
