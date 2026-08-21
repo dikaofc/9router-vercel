@@ -96,8 +96,9 @@ export async function seedFromEnv(adapter) {
           // ── OpenCode Free: no-auth. FAST-first so long /compact-style prompts
           // finish well under the 300s Vercel function limit (xhigh reasoning
           // models like hy3 can run many minutes and trip ECONNRESET on freeze).
-          // Cascade (fallback strategy) still covers any 429/5xx. ──
-          "oc/deepseek-v4-flash-free",         // DeepSeek V4 Flash (reasoning, fast)
+          // Cascade (fallback strategy + "model is unavailable" fall-through)
+          // covers any dead/throttled model. deepseek-v4-flash-free is REMOVED:
+          // it returns "Model is unavailable" upstream (retired id). ──
           "oc/nemotron-3.5-lightning-free",    // Nemotron 3.5 Lightning (reasoning, fast)
           "oc/muse-spark-1.2-contributor-free",// Muse Spark 1.2 Contributor
           "oc/mimo-v2.5-free",                 // MiMo V2.5

@@ -1,4 +1,4 @@
-import { RETRY_POLICY, RATE_LIMIT_PHRASES, PERMANENT_PHRASES, COOLDOWN } from "./config.js";
+import { RETRY_POLICY, RATE_LIMIT_PHRASES, PERMANENT_PHRASES, FALLTHROUGH_PHRASES, COOLDOWN } from "./config.js";
 
 /**
  * Classify an upstream error into an action the router should take.
@@ -22,10 +22,17 @@ export function classifyError({ status, errorText = "", hasRetryAfter = false } 
   const text = typeof errorText === "string" ? errorText.toLowerCase() : "";
   const hasRatePhrase = RATE_LIMIT_PHRASES.some((p) => text.includes(p));
   const hasPermanentPhrase = PERMANENT_PHRASES.some((p) => text.includes(p));
+  const hasFallthroughPhrase = FALLTHROUGH_PHRASES.some((p) => text.includes(p));
 
   // Explicit status wins first.
   if (RETRY_POLICY.refresh.has(code)) {
     return { action: "refresh", retryable: true, reason: `credential (${code})` };
+  }
+  // A 400 that names an unavailable model is a fall-through, not a drop: on a
+  // combo the router should try the next candidate instead of failing. Check
+  // this BEFORE the generic drop rule so "Model is unavailable" wins.
+  if (hasFallthroughPhrase) {
+    return { action: "cooldown", retryable: true, reason: "model_unavailable_fallthrough" };
   }
   if (RETRY_POLICY.drop.has(code) || hasPermanentPhrase) {
     return { action: "drop", retryable: false, reason: `permanent (${code})` };

@@ -90,3 +90,13 @@ export const PERMANENT_PHRASES = [
   "permission denied",
   "not allowed",
 ];
+
+// Phrases that look like a hard 400 but should still fall through to the next
+// candidate (combo / account fallback) rather than drop. An upstream "Model is
+// unavailable" (e.g. opencode.ai retiring a free model id) is a transient
+// catalog state, not a bad request — on a combo we want to try the next model
+// instead of failing the whole request.
+export const FALLTHROUGH_PHRASES = [
+  "model is unavailable",
+  "model unavailable",
+];
