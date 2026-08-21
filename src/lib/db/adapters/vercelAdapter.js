@@ -93,23 +93,23 @@ export async function seedFromEnv(adapter) {
         "free-first",
         "free-first",
         JSON.stringify([
-          // ── OpenCode Free: no-auth. FAST-first so long /compact-style prompts
-          // finish well under the 300s Vercel function limit (xhigh reasoning
-          // models like hy3 can run many minutes and trip ECONNRESET on freeze).
-          // Cascade (fallback strategy + "model is unavailable" fall-through)
-          // covers any dead/throttled model. deepseek-v4-flash-free is REMOVED:
-          // it returns "Model is unavailable" upstream (retired id). ──
+          // ── OpenCode Free: the only zero-key chat provider. All oc/* models
+          // are no-auth (no connection/key/login needed). FAST-first so long
+          // /compact-style prompts finish under the 300s Vercel limit; xhigh
+          // reasoning models last as throttled fallbacks. Cascade (fallback +
+          // "model is unavailable" fall-through) skips dead/throttled models.
+          // deepseek-v4-flash-free EXCLUDED: retired upstream (400 unavailable). ──
           "oc/nemotron-3.5-lightning-free",    // Nemotron 3.5 Lightning (reasoning, fast)
           "oc/muse-spark-1.2-contributor-free",// Muse Spark 1.2 Contributor
           "oc/mimo-v2.5-free",                 // MiMo V2.5
           "oc/big-pickle",                     // Big Pickle
-          "gemini-cli/gemini-2.5-flash",       // cross-provider cheap
-          // ── Smarter reasoning models LAST (used only if fast ones are throttled) ──
-          "oc/hy3-free",                       // Hy3 (reasoning, xhigh)
-          "oc/x-preview-f-free",               // X-Preview (reasoning)
           "oc/laguna-s-2.1-free",              // Laguna S 2.1 (reasoning)
           "oc/nemotron-3-ultra-free",          // Nemotron 3 Ultra (reasoning)
-          "groq/llama-3.3-70b-versatile",      // cross-provider cheap fallback
+          "oc/x-preview-f-free",               // X-Preview (reasoning)
+          "oc/hy3-free",                       // Hy3 (reasoning, xhigh) — heaviest, last
+          // ── Optional cheap fallbacks (only help if a key is configured) ──
+          "gemini-cli/gemini-2.5-flash",
+          "groq/llama-3.3-70b-versatile",
         ]),
         seedNow,
         seedNow,
