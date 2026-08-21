@@ -68,22 +68,29 @@ function redisSetSync(up, key, bytes) {
   // database") and the whole adapter falls back to in-memory (data loss).
   const b64 = Buffer.from(bytes).toString("base64");
   const url = `${up.url}/set/${encodeURIComponent(key)}`;
+  // The blob is piped via stdin (NOT argv) to avoid E2BIG: a base64 SQLite
+  // blob grows beyond the OS argv limit quickly, and spawnSync would then
+  // throw E2BIG and silently lose the write.
   const script = `
-    const b64 = process.argv[3];
-    (async () => {
-      const res = await fetch(process.argv[1], {
-        method: "POST",
-        headers: { Authorization: "Bearer " + process.argv[2], "Content-Type": "text/plain" },
-        body: b64,
-      });
-      if (!res.ok) { console.error("HTTP " + res.status); process.exit(1); }
-    })().catch((e) => { console.error(e.message); process.exit(1); });
+    const chunks = [];
+    process.stdin.on("data", (c) => chunks.push(c));
+    process.stdin.on("end", () => {
+      const b64 = Buffer.concat(chunks).toString("utf8");
+      (async () => {
+        const res = await fetch(process.argv[1], {
+          method: "POST",
+          headers: { Authorization: "Bearer " + process.argv[2], "Content-Type": "text/plain" },
+          body: b64,
+        });
+        if (!res.ok) { console.error("HTTP " + res.status); process.exit(1); }
+      })().catch((e) => { console.error(e.message); process.exit(1); });
+    });
   `;
   try {
     execFileSync(
       process.execPath,
-      ["-e", script, url, up.token, b64],
-      { stdio: ["ignore", "ignore", "pipe"], timeout: 10000 }
+      ["-e", script, url, up.token],
+      { input: b64, stdio: ["pipe", "ignore", "pipe"], timeout: 10000 }
     );
   } catch (e) {
     throw e;
@@ -204,7 +211,7 @@ export async function createUpstashAdapter() {
   // Many serverless instances share ONE Redis blob but each keeps its own
   // in-memory sql.js copy. Re-pull (throttled, byte-compared) so a write on one
   // instance is visible to others and toggles/usage don't "revert".
-  const SYNC_TTL_MS = 5000;
+  const SYNC_TTL_MS = 0;
   let _lastSyncCheck = 0;
   let _syncPromise = null;
   async function syncRemote(force = false) {

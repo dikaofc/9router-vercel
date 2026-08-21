@@ -10,7 +10,12 @@
 export async function requestFlush(adapter) {
   if (!adapter) return;
   if (typeof adapter._flush === "function") {
-    try { adapter._flush(); } catch (e) { console.warn(`[DB] flush failed: ${e.message}`); }
+    try {
+      // `_flush` may be sync (Upstash/Supabase child-process upload) or async
+      // (KV adapter's awaited fetch). Await whatever it returns so a KV upload
+      // lands BEFORE the lambda freezes — otherwise the write is silently lost.
+      await adapter._flush();
+    } catch (e) { console.warn(`[DB] flush failed: ${e.message}`); }
   }
   // Back-compat: some adapters expose only the async _persist (already flushed
   // via debounce). Awaiting it is harmless if it's a no-op.

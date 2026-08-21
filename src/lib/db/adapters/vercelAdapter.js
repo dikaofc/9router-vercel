@@ -4,6 +4,7 @@
  * State is lost between serverless invocations (acceptable for free-tier proxy).
  */
 import initSqlJs from "sql.js";
+import { execFileSync } from "node:child_process";
 import { PRAGMA_SQL } from "../schema.js";
 
 let SQL = null;
@@ -42,18 +43,38 @@ async function kvRead(kv) {
   }  return null;
 }
 
-async function kvWrite(kv, bytes) {
+// Synchronous KV SET via child node process (see upstashAdapter.redisSetSync
+// / supabaseAdapter.sbWriteSync for why sync is required on Vercel): an async
+// fire-and-forget fetch can be cut off by the lambda freeze and silently drop
+// the write. A child process upload completes before the lambda returns.
+function kvWriteSync(kv, bytes) {
   const b64 = Buffer.from(bytes).toString("base64");
-  const res = await fetch(`${kv.url}/set/${encodeURIComponent(DB_KV_KEY)}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${kv.token}`,
-      "Content-Type": "text/plain",
-    },
-    body: b64,
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`KV write failed: HTTP ${res.status}`);
+  const url = `${kv.url}/set/${encodeURIComponent(DB_KV_KEY)}`;
+  // Blob piped via stdin (NOT argv) to avoid E2BIG on larger DB blobs.
+  const script = `
+    const chunks = [];
+    process.stdin.on("data", (c) => chunks.push(c));
+    process.stdin.on("end", () => {
+      const b64 = Buffer.concat(chunks).toString("utf8");
+      (async () => {
+        const res = await fetch(process.argv[1], {
+          method: "POST",
+          headers: { Authorization: "Bearer " + process.argv[2], "Content-Type": "text/plain" },
+          body: b64,
+        });
+        if (!res.ok) { console.error("HTTP " + res.status); process.exit(1); }
+      })().catch((e) => { console.error(e.message); process.exit(1); });
+    });
+  `;
+  try {
+    execFileSync(
+      process.execPath,
+      ["-e", script, url, kv.token],
+      { input: b64, stdio: ["pipe", "ignore", "pipe"], timeout: 10000 }
+    );
+  } catch (e) {
+    throw e;
+  }
 }
 
 export async function seedFromEnv(adapter) {
@@ -141,8 +162,6 @@ export async function seedFromEnv(adapter) {
   } catch (e) {
     console.warn(`[DB/Vercel] default-off seed skipped: ${e.message}`);
   }
-
-  console.log(`[DB/Vercel] Seeded ${connections.length} provider connections from env vars`);
 }
 
 export async function createVercelAdapter() {
@@ -176,7 +195,9 @@ export async function createVercelAdapter() {
   async function persistNow() {
     if (!adapter._kv || adapter._seeding) return;
     try {
-      await kvWrite(adapter._kv, db.export());
+      // Synchronous upload (child process) so the write lands before the lambda
+      // freezes — an async fetch would be cut off and silently dropped.
+      kvWriteSync(adapter._kv, db.export());
       _lastPersistError = null;
     } catch (e) {
       _lastPersistError = e.message;
@@ -262,7 +283,7 @@ export async function createVercelAdapter() {
   // We re-pull the blob (throttled, byte-compared) before each request.
   // Cross-instance re-sync: throttle to every 5s to reduce KV reads while
   // still keeping instances reasonably in sync.
-  const SYNC_TTL_MS = 5000;
+  const SYNC_TTL_MS = 0;
   let _lastSyncCheck = 0;
   let _syncPromise = null;
   async function syncRemote(force = false) {

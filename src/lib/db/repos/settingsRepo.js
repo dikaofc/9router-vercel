@@ -24,7 +24,7 @@ const DEFAULT_SETTINGS = {
     videoInput: { enabled: false, roundRobin: false, models: [] },
   },
   requireLogin: true,
-  requireApiKey: true,
+  requireApiKey: false,
   tunnelDashboardAccess: true,
   authMode: "password",
   ssoType: "oidc",

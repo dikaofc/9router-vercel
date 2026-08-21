@@ -130,7 +130,15 @@ async function initAdapter() {
   // filesystem-backed adapter on Vercel (e.g. sql.js failed to load and we use /tmp).
   if (IS_VERCEL) {
     const { seedFromEnv } = await import("./adapters/vercelAdapter.js");
-    await seedFromEnv(adapter);
+    try {
+      await seedFromEnv(adapter);
+    } catch (e) {
+      // A seed hiccup must NEVER take down the whole adapter — if seeding
+      // throws, the DB schema still exists and the app should run (just
+      // without env-seeded defaults). Previously an uncaught throw here
+      // rejected initPromise and 500'd every DB-backed route.
+      console.warn(`[DB] seedFromEnv skipped due to error: ${e.message}`);
+    }
     if (typeof adapter._seeding === "boolean") adapter._seeding = false;
     if (typeof adapter._persist === "function") {
       try { await adapter._persist(); } catch (e) {
