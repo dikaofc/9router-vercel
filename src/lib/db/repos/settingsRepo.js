@@ -17,6 +17,10 @@ const DEFAULT_SETTINGS = {
   comboStrategy: "fallback",
   comboStickyRoundRobinLimit: 1,
   comboStrategies: {},
+  // Default account-selection across multiple credentials of the same provider.
+  // "round-robin" spreads load evenly across accounts (cuts per-account 429s on
+  // multi-device use); "fill-first" pins to the highest-priority account.
+  fallbackStrategy: "round-robin",
   capacityAdapter: {
     vision: { enabled: true, roundRobin: false, models: [] },
     pdf: { enabled: false, roundRobin: false, models: [] },
