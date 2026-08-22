@@ -5,11 +5,15 @@
   "installCommand": "npm install",
   "outputDirectory": ".next",
   "functions": {
-    "src/app/api/**/**.js": {
+    "src/app/api/**/*.js": {
       "maxDuration": 30,
       "memory": 256
     },
-    "src/app/api/v1/**/**.js": {
+    "src/app/api/v1/**/*.js": {
+      "maxDuration": 300,
+      "memory": 512
+    },
+    "src/app/api/v1beta/**/*.js": {
       "maxDuration": 300,
       "memory": 512
     }
