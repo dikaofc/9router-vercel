@@ -101,7 +101,14 @@ export function mergeWithDefaults(raw) {
 
 export async function getSettings() {
   const raw = await readRaw();
-  return mergeWithDefaults(raw);
+  const merged = mergeWithDefaults(raw);
+  // Honour REQUIRE_API_KEY env var (documented in .env.example but previously
+  // never applied). When set, it overrides the persisted value so operators can
+  // enforce (or relax) key auth via Vercel env without touching the dashboard.
+  if (process.env.REQUIRE_API_KEY !== undefined) {
+    merged.requireApiKey = String(process.env.REQUIRE_API_KEY).toLowerCase() === "true";
+  }
+  return merged;
 }
 
 // Atomic read-merge-write inside transaction (prevents losing concurrent updates)

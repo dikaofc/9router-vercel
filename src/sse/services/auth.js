@@ -393,9 +393,19 @@ export function extractApiKey(request) {
 }
 
 /**
- * Validate API key (optional - for local use can skip)
+ * Validate API key (optional - for local use can skip).
+ * Checks DB first, then falls back to env-var keys (API_KEY_SECRET + API_KEYS)
+ * which may not have been persisted to Upstash on a cold start.
  */
 export async function isValidApiKey(apiKey) {
   if (!apiKey) return false;
-  return await validateApiKey(apiKey);
+  if (await validateApiKey(apiKey)) return true;
+  const secret = process.env.API_KEY_SECRET;
+  if (secret && apiKey === secret) return true;
+  const keysEnv = process.env.API_KEYS;
+  if (keysEnv) {
+    const envKeys = String(keysEnv).split(/[\s,]+/).map((k) => k.trim()).filter(Boolean);
+    if (envKeys.includes(apiKey)) return true;
+  }
+  return false;
 }

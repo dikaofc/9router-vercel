@@ -161,6 +161,41 @@ export async function seedFromEnv(adapter) {
     }
   }
 
+  // ── Always re-seed API keys from env vars on EVERY cold start ────────────
+  // These are NOT in the `if (count > 0) return` block below because Upstash
+  // state can be reset / keys deleted from the dashboard, and env-var keys
+  // must always be available as a safety net. They use stable ids so
+  // INSERT OR REPLACE avoids duplicates across warm invocations.
+  const now = new Date().toISOString();
+
+  const apiKeySecret = process.env.API_KEY_SECRET;
+  if (apiKeySecret) {
+    adapter.run(
+      `INSERT OR REPLACE INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
+      [`vercel-key-secret`, apiKeySecret, "Vercel API Key", null, 1, now]
+    );
+  }
+
+  // Optional: pin multiple CLI API keys via API_KEYS (comma / newline / whitespace
+  // separated). Useful if you'd rather not provision them through the dashboard.
+  const apiKeysEnv = process.env.API_KEYS;
+  if (apiKeysEnv) {
+    const extraKeys = String(apiKeysEnv)
+      .split(/[\s,]+/)
+      .map((k) => k.trim())
+      .filter(Boolean);
+    let idx = 0;
+    for (const k of extraKeys) {
+      adapter.run(
+        `INSERT OR REPLACE INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
+        [`vercel-key-env-${idx++}`, k, "Vercel API Key (env)", null, 1, now]
+      );
+    }
+    if (extraKeys.length) {
+      console.log(`[DB/Vercel] Seeded ${extraKeys.length} API key(s) from API_KEYS env var`);
+    }
+  }
+
   const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");
   const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;
@@ -177,8 +212,6 @@ export async function seedFromEnv(adapter) {
   // PROVIDER_*_API_KEY here. Only 9Router's own CLI auth keys (API_KEY_SECRET /
   // API_KEYS) are provisioned via env, below.
 
-  const now = new Date().toISOString();
-
   const defaultSettings = {
     requireLogin: true,  // Password protection ON (default: 123456)
     requireApiKey: false,
@@ -192,35 +225,6 @@ export async function seedFromEnv(adapter) {
   };
 
   adapter.run(`INSERT INTO settings(id, data) VALUES(1, ?)`, [JSON.stringify(defaultSettings)]);
-
-  const apiKeySecret = process.env.API_KEY_SECRET;
-  if (apiKeySecret) {
-    adapter.run(
-      `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
-      [`vercel-key-secret-${Date.now()}`, apiKeySecret, "Vercel API Key", null, 1, now]
-    );
-  }
-
-  // Optional: pin multiple CLI API keys via API_KEYS (comma / newline / whitespace
-  // separated). Useful if you'd rather not provision them through the dashboard.
-  // (Dashboard-created keys persist via Upstash and are the normal path.)
-  const apiKeysEnv = process.env.API_KEYS;
-  if (apiKeysEnv) {
-    const extraKeys = String(apiKeysEnv)
-      .split(/[\s,]+/)
-      .map((k) => k.trim())
-      .filter(Boolean);
-    let idx = 0;
-    for (const k of extraKeys) {
-      adapter.run(
-        `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
-        [`vercel-key-env-${Date.now()}-${idx++}`, k, "Vercel API Key (env)", null, 1, now]
-      );
-    }
-    if (extraKeys.length) {
-      console.log(`[DB/Vercel] Seeded ${extraKeys.length} API key(s) from API_KEYS env var`);
-    }
-  }
 
   // Free-first: providers flagged `defaultEnabled: false` in their registry
   // entry (expensive / oauth-subscription) are hidden by default on every cold

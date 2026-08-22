@@ -104,7 +104,19 @@ function extractApiKey(request) {
 async function hasValidApiKey(request) {
   const apiKey = extractApiKey(request);
   if (!apiKey) return false;
-  return await validateApiKey(apiKey);
+  // Check DB first
+  if (await validateApiKey(apiKey)) return true;
+  // Fall back to env-var keys (API_KEY_SECRET + API_KEYS) — these may not
+  // have been persisted to Upstash yet on a cold start, or the DB key may
+  // have been deleted from the dashboard.
+  const secret = process.env.API_KEY_SECRET;
+  if (secret && apiKey === secret) return true;
+  const keysEnv = process.env.API_KEYS;
+  if (keysEnv) {
+    const envKeys = String(keysEnv).split(/[\s,]+/).map((k) => k.trim()).filter(Boolean);
+    if (envKeys.includes(apiKey)) return true;
+  }
+  return false;
 }
 
 async function canAccessPublicLlmApi(request) {
