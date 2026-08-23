@@ -30,10 +30,12 @@ const getConfigPaths = () => {
   return paths;
 };
 
+import fsSync from "fs";
+
 const getConfigPath = () => {
   for (const p of getConfigPaths()) {
     try {
-      require("fs").accessSync(p);
+      fsSync.accessSync(p);
       return p;
     } catch {}
   }

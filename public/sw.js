@@ -1,6 +1,7 @@
-const CACHE_NAME = '9router-v1';
-const STATIC_CACHE = '9router-static-v1';
-const DYNAMIC_CACHE = '9router-dynamic-v1';
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `9router-${CACHE_VERSION}`;
+const STATIC_CACHE = `9router-static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `9router-dynamic-${CACHE_VERSION}`;
 
 // Assets to pre-cache for offline use
 const PRECACHE_ASSETS = [
