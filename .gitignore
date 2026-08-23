@@ -48,6 +48,11 @@ next-env.d.ts
 data/
 logs/*
 source/*
+
+# claude code agent
+codebuff.json
+.claudefiles/
+.claude-cap/
 .cursor/*
 docs/*
 !docs/ARCHITECTURE.md

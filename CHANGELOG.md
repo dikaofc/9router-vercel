@@ -1,3 +1,35 @@
+# v0.5.56 (2026-08-23)
+
+## Features
+- **PWA**: offline caching service worker for Android/iOS home screen install
+- **Themes**: 35 themes (liquid glass, neobrutalism, minimalism, classic, fluid glass, tinted glass, glow, professional, super fast, super 3D, frost, cyberpunk, neon rave, vaporwave, arcade, Y2K, aurora, bento grid, HUD, terminal, luxury black & gold, monochrome, dark premium, startup modern, neo-classical, AI native) with SVG icons, full light/dark mode, zero-latency switching
+- **Token Saver**: all features (RTK, Headroom, Caveman, Ponytail, Context Saver, Fast Code, PXPIPE) default ON automatically
+- **CLI Tools**: add Pi Agent support for 9Router integration
+- **CI/CD**: GitHub Actions build testing workflow on push/PR
+- **Android/Termux**: cross-platform start script, zero-dep OAuth UI (ANSI escape codes instead of chalk/ora/figlet)
+
+## Fixes
+- **Bug Hunt**: clone body before translateRequest to prevent combo/fallback bleed (HIGH — stripContentTypes mutates messages in-place)
+- **Bug Hunt**: shallow-clone headers in h2c replay + move deletions before serve() to prevent header mutation race (HIGH)
+- **Bug Hunt**: remove dead code in scoring.js (`const f = conn.failure ? 0 : 0`)
+- **Bug Hunt**: add `id ASC` tiebreaker to requestDetails prune for deterministic deletion
+- **Vercel**: externalize node-forge & @node-saml/node-saml from serverless bundle
+- **Cross-platform**: Supabase adapter uses `os.tmpdir()` instead of hardcoded `/tmp`
+- **Cross-platform**: Login limiter trusts Vercel's `x-forwarded-for`
+- **Manifest**: PWA theme colors match light theme (#f8fafc)
+- **Service Worker**: dynamic cache versioning for proper cleanup on deploy
+
+## Performance
+- **Themes page**: React.memo, requestAnimationFrame, useMemo — zero-latency switching
+- **Bundle**: remove 6 heavy unused deps (~15MB lighter): chalk, ora, express, http-proxy-middleware, selfsigned, socks-proxy-agent
+- **Repo**: remove gitbook/ directory (121 files, 34K lines, standalone project not needed at runtime)
+
+## Security
+- All 5 bug hunt findings verified and fixed (see Fixes above)
+- Security audit: no critical/high vulnerabilities found (SQL, IP spoofing, command injection, SSRF, default password all verified safe)
+
+---
+
 # v0.5.55 (2026-08-14)
 
 ## Features
