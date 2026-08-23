@@ -14,7 +14,7 @@ import {
 
 export default function TokenSaverClient() {
   const [rtkEnabled, setRtkEnabledState] = useState(true);
-  const [headroomEnabled, setHeadroomEnabled] = useState(false);
+  const [headroomEnabled, setHeadroomEnabled] = useState(true);
   const [headroomUrl, setHeadroomUrl] = useState("http://localhost:8787");
   const [headroomStatus, setHeadroomStatus] = useState({
     installed: false,
@@ -42,15 +42,15 @@ export default function TokenSaverClient() {
   const [kompress, setKompress] = useState(true);
   const [restartingProxy, setRestartingProxy] = useState(false);
   const logPollRef = useRef(null);
-  const [cavemanEnabled, setCavemanEnabled] = useState(false);
+  const [cavemanEnabled, setCavemanEnabled] = useState(true);
   const [cavemanLevel, setCavemanLevel] = useState("full");
-  const [ponytailEnabled, setPonytailEnabled] = useState(false);
+  const [ponytailEnabled, setPonytailEnabled] = useState(true);
   const [ponytailLevel, setPonytailLevel] = useState("full");
-  const [contextSaverEnabled, setContextSaverEnabled] = useState(false);
+  const [contextSaverEnabled, setContextSaverEnabled] = useState(true);
   const [contextSaverLevel, setContextSaverLevel] = useState("full");
-  const [fastCodeEnabled, setFastCodeEnabled] = useState(false);
+  const [fastCodeEnabled, setFastCodeEnabled] = useState(true);
   const [fastCodeLevel, setFastCodeLevel] = useState("full");
-  const [pxpipeEnabled, setPxpipeEnabled] = useState(false);
+  const [pxpipeEnabled, setPxpipeEnabled] = useState(true);
   const [pxpipeMinChars, setPxpipeMinChars] = useState(25000);
   const [pxpipeStatus, setPxpipeStatus] = useState({
     installed: false,
