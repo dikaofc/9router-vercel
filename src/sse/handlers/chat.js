@@ -26,9 +26,22 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 
 /**
- * Handle chat completion request
- * Supports: OpenAI, Claude, Gemini, OpenAI Responses API formats
- * Format detection and translation handled by translator
+ * Handle chat completion request.
+ *
+ * Entry point for /v1/chat/completions (mapped to /api/v1/...). Parses the body,
+ * expands model "combos" with fallback, and routes to the open-sse engine.
+ * Supports OpenAI, Claude, Gemini, and OpenAI Responses API formats; format
+ * detection/translation is delegated to the translator layer.
+ *
+ * Contract:
+ *   - Returns an HTTP Response (or one streamed from chatCore).
+ *   - Never throws for well-formed-but-invalid input — returns 400/401/404.
+ * Failure modes:
+ *   - Malformed JSON body → 400 "Invalid JSON body".
+ *   - Missing/invalid API key when requireApiKey is set → 401.
+ *   - Missing model / unresolvable combo / invalid model format → 400/404.
+ *   - Upstream credential exhaustion (all accounts rate-limited/unavailable) →
+ *     429/503 via unavailableResponse / errorResponse.
  */
 export async function handleChat(request, clientRawRequest = null) {
   let body;
@@ -114,10 +127,9 @@ export async function handleChat(request, clientRawRequest = null) {
     }
   }
 
-  // Check if model is a combo (has multiple models with fallback)
-  const comboModels = resolvedModelStr !== modelStr
-    ? await getComboModels(resolvedModelStr)
-    : await getComboModels(modelStr);
+  // Check if model is a combo (has multiple models with fallback). Fetch once;
+  // resolveCombo models for whichever string survived the free-first swap.
+  const comboModels = await getComboModels(resolvedModelStr);
   if (comboModels) {
     modelStr = resolvedModelStr;
     // Check for combo-specific strategy first, fallback to global
@@ -138,7 +150,7 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, settings, userAgent);
         },
         log,
         comboName: modelStr,
@@ -153,7 +165,7 @@ export async function handleChat(request, clientRawRequest = null) {
       body,
       models: augmentedModels,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, settings, userAgent),
         adapterAdded
       ),
       log,
@@ -173,7 +185,7 @@ export async function handleChat(request, clientRawRequest = null) {
       body,
       models: soloAugmented,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, settings, userAgent),
         adapterAdded
       ),
       log,
@@ -182,20 +194,37 @@ export async function handleChat(request, clientRawRequest = null) {
     });
   }
 
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey);
+  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, settings, userAgent);
 }
 
 /**
- * Handle single model chat request
+ * Route a single (resolved) model to chatCore, running the account-selection
+ * fallback loop. Also re-enters here if an upstream model proved to be a combo.
+ *
+ * Contract:
+ *   - `body.model` is already a single provider/model string (no combo expansion).
+ *   - Returns an HTTP Response (or one streamed from chatCore) — never throws
+ *     for upstream errors; it falls back to the next account or 4xx/5xx.
+ * Failure modes:
+ *   - `modelStr` resolves to no provider (not a real model, not a combo) →
+ *     400 "Invalid model format".
+ *   - No active credentials for the provider → 404.
+ *   - All accounts rate-limited / unavailable → 429/503.
+ *   - Upstream call failure → marks the account unavailable and retries the
+ *     next account until exhaustion.
+ *
+ * `settings`/`userAgent` are optional; when omitted they are fetched/extracted
+ * once here (callers that already have them should pass them to avoid duplicate
+ * getSettings() reads / header scans).
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null) {
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, settings = null, userAgent = null) {
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
   if (!modelInfo.provider) {
     const comboModels = await getComboModels(modelStr);
     if (comboModels) {
-      const chatSettings = await getSettings();
+      const chatSettings = settings || await getSettings();
       // Check for combo-specific strategy first, fallback to global
       const comboStrategies = chatSettings.comboStrategies || {};
       const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
@@ -215,7 +244,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, settings, userAgent);
           },
           log,
           comboName: modelStr,
@@ -230,7 +259,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         body,
         models: augmentedModels,
         handleSingleModel: withCapacityAdapterStripping(
-          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, settings, userAgent),
           adapterAdded
         ),
         log,
@@ -247,8 +276,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
   // Routing shown in the unified "▶" line (client model → provider/model)
 
-  // Extract userAgent from request
-  const userAgent = request?.headers?.get("user-agent") || "";
+  // Reuse caller-provided userAgent, else extract once from the request.
+  const ua = userAgent ?? request?.headers?.get("user-agent") ?? "";
 
   // Try with available accounts (fallback on errors)
   const excludeConnectionIds = new Set();
@@ -297,7 +326,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       log,
       clientRawRequest,
       connectionId: credentials.connectionId,
-      userAgent,
+      userAgent: ua,
       apiKey,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
       rtkEnabled: !!chatSettings.rtkEnabled,
@@ -324,8 +353,16 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       pxpipeTransform: chatSettings.pxpipeEnabled ? await getPxpipeTransform() : null,
       onPxpipeEvent: appendPxpipeEvent,
       providerThinking,
-      // Detect source format by endpoint + body
-      sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
+      // Detect source format by endpoint + body. request.url is attacker-
+      // controlled at a trust boundary — guard against a malformed URL.
+      sourceFormatOverride: (() => {
+        if (!request?.url) return null;
+        try {
+          return detectFormatByEndpoint(new URL(request.url).pathname, body);
+        } catch {
+          return null;
+        }
+      })(),
       onCredentialsRefreshed: async (newCreds) => {
         await updateProviderCredentials(credentials.connectionId, {
           ...newCreds,

@@ -187,7 +187,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // Normalize newer Cowork/CC beta shapes (adaptive thinking, mid-conversation system) the API rejects
     if (clientTool === "claude") normalizeClaudePassthrough(translatedBody, translatedBody.model);
   } else {
-    translatedBody = translateRequest(sourceFormat, targetFormat, upstreamModel, body, stream, credentials, provider, reqLogger, stripList, connectionId, clientTool);
+    // Clone the request body: translateRequest (via stripContentTypes/normalize*)
+    // mutates messages/content in place. In a combo/fallback loop the same `body`
+    // is handed to multiple attempts, so a strip on model A would bleed into model
+    // B's input. Clone so each attempt starts from the original request.
+    const bodyClone = structuredClone(body);
+    translatedBody = translateRequest(sourceFormat, targetFormat, upstreamModel, bodyClone, stream, credentials, provider, reqLogger, stripList, connectionId, clientTool);
     if (!translatedBody) {
       trackPendingRequest(model, provider, connectionId, false, true);
       return createErrorResult(HTTP_STATUS.BAD_REQUEST, `Failed to translate request for ${sourceFormat} → ${targetFormat}`);

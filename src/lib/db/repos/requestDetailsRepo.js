@@ -127,7 +127,7 @@ async function flushToDatabase() {
         const cnt = db.get(`SELECT COUNT(*) as c FROM requestDetails`);
         if (cnt && cnt.c > config.maxRecords) {
           db.run(
-            `DELETE FROM requestDetails WHERE id IN (SELECT id FROM requestDetails ORDER BY timestamp ASC LIMIT ?)`,
+            `DELETE FROM requestDetails WHERE id IN (SELECT id FROM requestDetails ORDER BY timestamp ASC, id ASC LIMIT ?)`,
             [cnt.c - config.maxRecords]
           );
         }

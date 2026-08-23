@@ -20,7 +20,6 @@ function healthScore(conn, now) {
 
 function successRateScore(conn) {
   const s = conn.successCount ?? conn.okCount ?? 0;
-  const f = conn.failure? 0 : 0; // placeholder, replaced below
   const fails = conn.failureCount ?? conn.failCount ?? 0;
   const total = s + fails;
   if (total <= 0) return 0.8; // unknown -> neutral-positive
