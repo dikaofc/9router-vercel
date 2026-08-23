@@ -15,6 +15,7 @@ import { GET as deepseekTuiGet } from "../deepseek-tui-settings/route";
 import { GET as jcodeGet } from "../jcode-settings/route";
 import { GET as grokBuildGet } from "../grok-build-settings/route";
 import { GET as devinGet } from "../devin-settings/route";
+import { GET as piAgentGet } from "../pi-agent-settings/route";
 
 const STATUS_GETTERS = {
   claude: claudeGet,
@@ -31,6 +32,7 @@ const STATUS_GETTERS = {
   jcode: jcodeGet,
   "grok-build": grokBuildGet,
   devin: devinGet,
+  "pi-agent": piAgentGet,
 };
 
 // Batch endpoint: gather all CLI tool statuses in one round-trip
