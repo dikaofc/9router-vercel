@@ -94,3 +94,9 @@ dev-output.log
 run.sh
 server.pid
 *.output
+
+# Termux / Android
+termux.properties
+.bash_history
+.mostrc
+.neofetch/
