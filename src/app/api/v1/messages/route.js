@@ -1,6 +1,9 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 let initialized = false;
 
 /**

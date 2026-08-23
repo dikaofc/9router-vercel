@@ -1,4 +1,4 @@
-import open from "open";
+import { openBrowser } from "../openBrowser.js";
 import { OAuthService } from "./oauth.js";
 import { CODEX_CONFIG } from "../constants/oauth.js";
 import { getServerCredentials } from "../config/index.js";
@@ -95,7 +95,7 @@ export class CodexService extends OAuthService {
       console.log(`If browser doesn't open, visit:\n${authUrl}\n`);
 
       // Open browser
-      await open(authUrl);
+      await openBrowser(authUrl);
 
       // Wait for callback
       spinner.start("Waiting for OpenAI authorization...");

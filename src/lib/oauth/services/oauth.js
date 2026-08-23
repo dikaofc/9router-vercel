@@ -1,4 +1,4 @@
-import open from "open";
+import { openBrowser } from "../openBrowser.js";
 import { startLocalServer } from "../utils/server.js";
 import { generatePKCE } from "../utils/pkce.js";
 import { spinner as createSpinner } from "../utils/ui.js";
@@ -136,7 +136,7 @@ export class OAuthService {
     console.log(`If browser doesn't open, visit:\n${authUrl}\n`);
 
     // Open browser
-    await open(authUrl);
+    await openBrowser(authUrl);
 
     // Wait for callback
     const callbackParams = await waitForCallback();

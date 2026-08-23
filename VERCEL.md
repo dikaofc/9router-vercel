@@ -20,6 +20,7 @@
 | Token Refresh | ❌ Not supported | No persistent background process |
 | MITM/TLS | ❌ Not supported | Need persistent process |
 | Cloudflare Tunnel | ❌ Not supported | Vercel sudah punya domain sendiri |
+| SAML SSO | ❌ Not supported | Local-only IdP flow blocked on Vercel |
 | File Persistence | ✅ Via KV/Supabase | Use Vercel KV or Supabase for persistence |
 
 ## 📋 Setup Instructions
@@ -185,6 +186,15 @@ Untuk minimize cold start:
    - Auto-fallback kalau salah satu down
 
 ---
+
+## ⚙️ Vercel Build & Runtime Notes
+
+- **Function timeout**: streaming routes (`/v1/chat/completions`, `/v1/responses`, `/v1/messages`, `/v1beta/models`, `/v1beta/models/[...path]`) set `export const maxDuration = 60` — the **Hobby plan** cap (2 akun standard, bukan Pro). On a **Pro** plan you can raise this to `300` in those 5 route files and in `vercel.json` (`functions` → `maxDuration`).
+- **Local-only features are blocked on Vercel** (return `403`): MITM/TLS proxy, Cloudflare/Tailscale tunnel, headroom proxy, SAML SSO IdP flow, and the cursor/kiro auto-import flows. They need a persistent process / local filesystem that the serverless runtime does not provide.
+- **Optional dependencies**: `node-forge` (MITM cert gen) and `@node-saml/node-saml` (SAML SSO) are `optionalDependencies` + externalized — they are not bundled into the serverless function, keeping the deploy light, while still installing for self-hosted/Termux use.
+- **OAuth browser open is skipped on Vercel**: the 6 OAuth services now print the auth URL instead of spawning a local browser (no display on the serverless runtime). On self-host/Termux they still try to open a browser and fall back to printing the URL if none is available.
+- **Termux / Android**: the CLI auto-detects Termux and skips the native `better-sqlite3` compile, falling back to the pure-JS `sql.js` driver. Self-hosted Linux/macOS/Windows keep `better-sqlite3` for speed when build tools are present.
+- **Lighter build**: `next.config.mjs` uses `output: "standalone"` + `serverExternalPackages` to keep the function zip small. Dead deps (`express`, `http-proxy-middleware`, `selfsigned`) were already removed; `gitbook/` docs are excluded from the build.
 
 ## 💖 Credits
 

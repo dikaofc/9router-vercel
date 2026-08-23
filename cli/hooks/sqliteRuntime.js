@@ -123,6 +123,16 @@ function ensureSqliteRuntime({ silent = false } = {}) {
     if (sqlJsOk) sqlJsOk = isSqlJsWasmValid();
   }
 
+  // Termux / Android has no native build toolchain by default, so skip the
+  // better-sqlite3 native compile and use the pure-JS sql.js fallback.
+  const isTermux =
+    fs.existsSync("/data/data/com.termux") ||
+    (process.env.PREFIX && process.env.PREFIX.includes("com.termux"));
+  if (isTermux) {
+    if (!silent) console.log("📱 Termux detected — using sql.js (no native build)");
+    return { betterSqlite: false, sqlJs: sqlJsOk };
+  }
+
   const needBetterSqlite = !hasModule("better-sqlite3") || !isBetterSqliteBinaryValid();
   if (!needBetterSqlite) {
     if (!silent) console.log("✅ SQLite engine ready");

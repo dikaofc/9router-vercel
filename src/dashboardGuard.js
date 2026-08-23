@@ -41,7 +41,7 @@ const PROTECTED_API_PATHS = [
   "/api/tags", "/api/cli-tools", "/api/mcp", "/api/translator", "/api/tunnel",
 ];
 
-const LOCAL_ONLY_PATHS = IS_VERCEL ? [] : [
+const LOCAL_ONLY_PATHS = [
   "/api/cli-tools/cowork-settings", "/api/cli-tools/antigravity-mitm", "/api/mcp/",
   "/api/tunnel/tailscale-install", "/api/tunnel/tailscale-enable", "/api/tunnel/tailscale-disable",
   "/api/tunnel/tailscale-check", "/api/tunnel/enable", "/api/tunnel/disable",
@@ -164,6 +164,13 @@ export const __test__ = { isLocalRequest, isPublicLlmApi, extractApiKey, canAcce
 
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
+
+  // Vercel's serverless runtime cannot run self-host-only features (SAML SSO
+  // IdP flow, MITM proxy, tunnels, headroom). Block them explicitly so they
+  // fail cleanly instead of erroring inside the handler.
+  if (IS_VERCEL && pathname.startsWith("/api/auth/saml")) {
+    return NextResponse.json({ error: "SAML SSO is not available on Vercel" }, { status: 403 });
+  }
 
   if (LOCAL_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
     if (!(await canAccessLocalOnlyRoute(request))) {
