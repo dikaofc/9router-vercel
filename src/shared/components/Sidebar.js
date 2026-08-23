@@ -28,6 +28,7 @@ const navItems = [
 ];
 
 const systemItems = [
+  { href: "/dashboard/themes", label: "Themes", icon: "palette" },
   { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
   { href: "/dashboard/skills", label: "Skills", icon: "extension" },
 ];
