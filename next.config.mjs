@@ -25,7 +25,14 @@ const nextConfig = {
   // letter). That throw happens at module scope, so every consumer of `open` dies on
   // import — including xAI/Grok token refresh, which loads the OAuth service that imports
   // it. Keeping it external preserves the real `import.meta.url` at runtime.
-  serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite", "open"],
+  // `node-forge` + `@node-saml/node-saml` are local-only (MITM cert-gen / SAML SSO) and must
+  // stay external so they are NOT bundled into the serverless function. They are imported on
+  // Vercel-runnable routes too: `src/lib/auth/saml.js` is pulled in by `api/auth/login` and
+  // `api/auth/status` (via `isSamlConfigured`), and `src/mitm/cert/rootCA.js` requires
+  // `node-forge`. Bundling them is heavy/risky; externalizing lets Vercel trace + require them
+  // at runtime, out of the function zip. They remain in `optionalDependencies`.
+  // (`open` above is externalized for the same class of reason — see its comment.)
+  serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite", "open", "node-forge", "@node-saml/node-saml"],
   turbopack: {
     root: tracingRoot
   },
