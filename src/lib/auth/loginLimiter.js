@@ -47,6 +47,16 @@ export function recordSuccess(ip) {
 }
 
 export function getClientIp(request) {
+  // On Vercel the request arrives through Vercel's proxy, which overwrites
+  // x-forwarded-for with the real client IP — trustworthy (no custom-server peer).
+  const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
+  if (IS_VERCEL) {
+    const xff = request.headers.get("x-forwarded-for");
+    if (xff) return xff.split(",")[0].trim();
+    const realIp = request.headers.get("x-real-ip");
+    if (realIp) return realIp;
+    return "unknown";
+  }
   // Trusted only when custom-server.js proves it stamped the header from the TCP socket;
   // otherwise a client could rotate the value to escape its own lockout bucket.
   if (hasTrustedPeerHeaders(request)) {

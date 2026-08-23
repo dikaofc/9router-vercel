@@ -6,9 +6,10 @@
 - ✅ **Auto-deploy** dari GitHub (push to deploy)
 - ✅ **HTTPS** otomatis
 - ✅ **Custom domain** gratis
-- ❌ **State reset** pada cold start (acceptable untuk proxy)
+- ✅ **Cross-platform** (Windows, Linux, macOS, Android — works everywhere via native `fetch()`)
+- ⚠️ **State reset** pada cold start (but Vercel KV / Supabase persistence supported)
 
-## ⚠️ Limitations di Vercel
+## ⚠️ Feature Support
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -19,14 +20,13 @@
 | Token Refresh | ❌ Not supported | No persistent background process |
 | MITM/TLS | ❌ Not supported | Need persistent process |
 | Cloudflare Tunnel | ❌ Not supported | Vercel sudah punya domain sendiri |
-| File Persistence | ❌ Lost on cold start | Pakai env vars untuk config |
+| File Persistence | ✅ Via KV/Supabase | Use Vercel KV or Supabase for persistence |
 
 ## 📋 Setup Instructions
 
 ### 1. Fork/Push to GitHub
 
 ```bash
-# Clone repo (sudah di-patch)
 git clone https://github.com/YOUR_USERNAME/9router-vercel.git
 cd 9router-vercel
 git push origin main
@@ -55,6 +55,7 @@ Buka Vercel Dashboard → Project → Settings → Environment Variables
 | Variable | Value | Notes |
 |----------|-------|-------|
 | `API_KEY_SECRET` | `sk_your_api_key` | Untuk authenticate CLI tools |
+| `API_KEYS` | `sk-key1,sk-key2` | Multiple API keys (comma-separated) |
 
 **Optional — Provider API Keys (add yang kamu punya):**
 
@@ -65,6 +66,8 @@ Buka Vercel Dashboard → Project → Settings → Environment Variables
 | `PROVIDER_DEEPSEEK_API_KEY` | `your-deepseek-key` |
 | `PROVIDER_GROQ_API_KEY` | `your-groq-key` |
 | `PROVIDER_KIMI_API_KEY` | `your-kimi-key` |
+| `PROVIDER_OPENAI_API_KEY` | `your-openai-key` |
+| `PROVIDER_ANTHROPIC_API_KEY` | `your-anthropic-key` |
 
 **Or use generic provider:**
 
@@ -72,6 +75,17 @@ Buka Vercel Dashboard → Project → Settings → Environment Variables
 |----------|-------|
 | `PROVIDER_NAME` | `openai` |
 | `PROVIDER_API_KEY` | `sk-xxxx` |
+
+**Optional — Persistence (survives cold starts):**
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `KV_REST_API_URL` | `https://xxx.kv.vercel-storage.com` | Vercel KV |
+| `KV_REST_API_TOKEN` | `xxx` | Vercel KV |
+| `UPSTASH_REDIS_REST_URL` | `https://xxx.upstash.io` | Upstash Redis |
+| `UPSTASH_REDIS_REST_TOKEN` | `xxx` | Upstash Redis |
+| `SUPABASE_URL` | `https://xxx.supabase.co` | Supabase Storage |
+| `SUPABASE_SERVICE_ROLE_KEY` | `xxx` | Supabase (service role) |
 
 ### 4. Deploy
 
@@ -87,11 +101,8 @@ API Endpoint: `https://your-project.vercel.app/v1`
 ### Claude Code
 
 ```bash
-# Set environment variables
 export ANTHROPIC_API_BASE="https://your-project.vercel.app/v1"
 export ANTHROPIC_API_KEY="sk_your_api_key"
-
-# Use with model
 claude --model cc/claude-opus-4-7
 ```
 
@@ -124,28 +135,25 @@ Model: cc/claude-opus-4-7
 ## 🐛 Troubleshooting
 
 ### "No active credentials for provider"
-
 Pastikan kamu sudah set `PROVIDER_*_API_KEY` environment variables di Vercel.
 
 ### "Unauthorized" error
-
 Pastikan `API_KEY_SECRET` sudah di-set dan kamu pakai key yang sama di CLI tool.
 
 ### Dashboard shows empty
-
 Ini normal karena state di-reset setiap cold start. Provider connections di-seed dari env vars.
+Untuk persistence, gunakan Vercel KV atau Supabase.
 
 ### Build fails
-
 Cek build logs di Vercel Dashboard → Deployments → Logs.
 
 ## 🔄 State Persistence
 
-Untuk persist state antar cold start, kamu bisa:
+Untuk persist state antar cold start:
 
 1. **Pakai env vars** untuk semua provider connections (recommended)
-2. **Pakai Vercel KV** (Redis) untuk persist — butuh upgrade ke plan berbayar
-3. **Pakai Turso** (serverless SQLite) — ada free tier
+2. **Pakai Vercel KV** (Redis) untuk persist — auto-injects on Vercel
+3. **Pakai Supabase** — free tier tersedia, auto-persist DB blob
 
 ## 📊 Cold Start
 
@@ -181,10 +189,3 @@ Untuk minimize cold start:
 ## 💖 Credits
 
 **9Router** by [decolua](https://github.com/decolua/9router) — open source AI router & token saver.
-
-**Vercel deployment patch** by **Dika Tech**
-- 📱 Telegram: [@dikaacode](https://t.me/dikaacode)
-- 💰 Donate: [saweria.co/dikatech](https://saweria.co/dikatech)
-- 💻 GitHub: [dikaofc](https://github.com/dikaofc)
-
-> If this patch helped you save money on hosting, consider buying me a coffee! ☕

@@ -98,8 +98,11 @@ async function sbRead(sup) {
 // in the Vercel serverless runtime) that does an HTTPS fetch from the URL.
 // The blob goes through a temp file, not argv, to dodge CLI length limits.
 function sbWriteSync(sup, bytes) {
-  const tmpFile = `/tmp/9router/db/.sb-upload-${process.pid}.bin`;
-  fs.mkdirSync("/tmp/9router/db", { recursive: true });
+  const os = require("node:os");
+  const path = require("node:path");
+  const tmpDir = path.join(os.tmpdir(), "9router", "db");
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const tmpFile = path.join(tmpDir, `.sb-upload-${process.pid}.bin`);
   fs.writeFileSync(tmpFile, Buffer.from(bytes));
   const url = `${sup.url}/storage/v1/object/${BUCKET}/${DB_KEY}?upsert=true`;
   const script = `
