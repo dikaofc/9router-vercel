@@ -18,6 +18,7 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { OPENCODE_FREE_BROKEN_MODELS } from "open-sse/executors/opencode.js";
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
@@ -471,6 +472,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         const allowAsLlm = kind === "imageToText" && kindFilter.includes(LLM_KIND);
         if (!kindFilter.includes(kind) && !allowAsLlm) continue;
         if (isDisabled(outputAlias, modelId) || isDisabled(staticAlias, modelId)) continue;
+        if (OPENCODE_FREE_BROKEN_MODELS.has(modelId) && providerId === "opencode") continue;
 
         const model = {
           id: `${outputAlias}/${modelId}`,
