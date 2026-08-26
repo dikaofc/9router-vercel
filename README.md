@@ -73,8 +73,11 @@ npm install -g 9router
 | 🌐 Render | ✅ 750 jam/bulan | ⚠️ 15min idle | [RENDER.md](./RENDER.md) |
 | 🐳 Cloud Run | ✅ 2M request/bulan | ❌ Auto-scale | [CLOUDRUN.md](./CLOUDRUN.md) |
 | 🎮 Replit | ✅ Builder plan | ⚠️ Idle sleep | [REPLIT.md](./REPLIT.md) |
+| 🎭 Glitch | ✅ Selamanya | ⚠️ 5min idle | [GLITCH.md](./GLITCH.md) |
+| ⚡ Koyeb | ✅ Nano gratis | ❌ Gak sleep | [KOYEB.md](./KOYEB.md) |
+| 🚀 Zeabur | ✅ $5 credit | ❌ Gak sleep | [ZEABUR.md](./ZEABUR.md) |
 
-**Rekomendasi:** Railway (persistent, gak sleep) atau Vercel (serverless, cepat).
+**Rekomendasi:** Railway/Koyeb/Zeabur (persistent, gak sleep) atau Vercel (serverless, cepat).
 
 ---
 
@@ -166,6 +169,9 @@ Punya 3 akun OpenAI? Round-robin otomatis. Limit per akun = 3x lebih banyak.
 | 🌐 Render | Push to deploy | Auto | Free 750h |
 | 🐳 Cloud Run | `gcloud run deploy` | Container | Auto-scale |
 | 🎮 Replit | Import from GitHub | Auto | Browser |
+| 🎭 Glitch | Import from GitHub | 200MB | Browser, paling gampang |
+| ⚡ Koyeb | Push to deploy | 512MB | Docker/Node.js, gak sleep |
+| 🚀 Zeabur | Push to deploy | Auto | Mirip Railway |
 
 ---
 
