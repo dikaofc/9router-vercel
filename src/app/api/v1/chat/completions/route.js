@@ -31,6 +31,15 @@ export async function OPTIONS() {
 }
 
 export async function POST(request) {
+  // Reject oversized bodies early to prevent OOM on Vercel's 512MB memory limit
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > 1_048_576) { // 1MB
+    return new Response(JSON.stringify({ error: "Request body too large (max 1MB)" }), {
+      status: 413,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
   // Pre-warm the DB adapter so the usage write path is not a cold-start chain
   // that races the serverless freeze after the SSE response finishes.
   if (!initialized) {

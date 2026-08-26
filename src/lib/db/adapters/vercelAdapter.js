@@ -200,9 +200,7 @@ export async function seedFromEnv(adapter) {
         [`vercel-key-env-${idx++}`, k, "Vercel API Key (env)", null, 1, now]
       );
     }
-    if (extraKeys.length) {
-      console.log(`[DB/Vercel] Seeded ${extraKeys.length} API key(s) from API_KEYS env var`);
-    }
+    // Logging removed to avoid leaking API key count in production logs
   }
 
   const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");

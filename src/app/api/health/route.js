@@ -59,7 +59,12 @@ async function collectHealth() {
 export async function GET() {
   try {
     const health = await collectHealth();
-    return NextResponse.json(health, { headers: CORS_HEADERS });
+    // In production, return minimal info to avoid leaking version/env details
+    const isProd = process.env.NODE_ENV === "production";
+    const safeHealth = isProd
+      ? { ok: health.ok, uptime: health.uptime }
+      : health;
+    return NextResponse.json(safeHealth, { headers: CORS_HEADERS });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers: CORS_HEADERS });
   }
