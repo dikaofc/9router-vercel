@@ -125,6 +125,7 @@ import p122 from "./vireonix.js";
 import p123 from "./cehpoint.js";
 import p124 from "./blockrun.js";
 import p125 from "./ovhcloud.js";
+import p126 from "./pollinations.js";
 
 export default [
   p0,
@@ -251,4 +252,5 @@ export default [
   p123,
   p124,
   p125,
+  p126,
 ];
