@@ -534,7 +534,7 @@ a third party under a provider named "Self-hosted".
 | 📝 **Request Logging**                                                            | Debug mode with full request/response logs                                               | Troubleshoot issues easily                        |
 | 💾 **Cloud Sync**                                                                 | Sync config across devices                                                               | Same setup everywhere                             |
 | 📊 **Usage Analytics**                                                            | Track tokens, cost, trends over time                                                     | Optimize spending                                 |
-| 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers, Vercel, Railway                               | Flexible deployment options                       |
+| 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers, Vercel, Railway, Render, Netlify, Cloud Run    | Flexible deployment options                       |
 
 Set `X-9Router-Token-Saver: off` to bypass all token savers for one chat request.
 
@@ -706,6 +706,9 @@ On serverless (Vercel) and fresh installs, 9Router ships a managed **`free-first
 - ▲ **Vercel** - Serverless; recommend the **Hobby** plan (`maxDuration` 300s, no Pro needed). State persists via Upstash (primary) → Supabase → KV → in-memory; writes flush before the lambda freezes so toggles/keys/combos survive cold starts. The zero-key `free-first` combo works out-of-the-box — no API key required.
   - Required env (Vercel dashboard, never committed): `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or Vercel KV), `JWT_SECRET`, and `INITIAL_PASSWORD` (override the `123456` default). `API_KEY_SECRET`/`API_KEYS` optional for CLI auth.
 - 🚂 **Railway** - Persistent process with SQLite persistence; push to deploy. See [RAILWAY.md](RAILWAY.md).
+- 🌐 **Render** - Node.js native, free tier 750h/bulan, push to deploy. See [RENDER.md](RENDER.md).
+- 🔷 **Netlify** - Serverless edge functions, mirip Vercel. See [NETLIFY.md](NETLIFY.md).
+- 🐳 **Google Cloud Run** - Docker-based, auto-scale, free tier besar. See [CLOUDRUN.md](CLOUDRUN.md).
 - 📱 **Android Termux** - Run on Android phones/tablets with low memory optimization
 - 🪟 **Windows** - Native Windows support with batch scripts
 
@@ -721,6 +724,9 @@ On serverless (Vercel) and fresh installs, 9Router ships a managed **`free-first
 | **macOS** | `npm run start` | Standard | Tray icon support |
 | **Android Termux** | `npm run start:termux` | Low memory mode | No native build required |
 | **Railway** | `npm run start:railway` | Auto-detect RAM | Ephemeral disk → sql.js |
+| **Render** | `npm run start:render` | Auto-detect RAM | Free tier 750h/bulan |
+| **Netlify** | `npm run build` | Serverless | Edge functions, mirip Vercel |
+| **Cloud Run** | `docker run` | Container | Auto-scale, free tier besar |
 
 #### 📱 Android Termux (Low-End Devices)
 

@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: 9router
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node custom-server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 20128
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: INITIAL_PASSWORD
+        value: "change-me"
+      - key: DATA_DIR
+        value: /tmp/.9router
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"

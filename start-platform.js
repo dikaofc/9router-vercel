@@ -58,6 +58,21 @@ function detectPlatform() {
     process.env.RAILWAY_SERVICE_ID !== undefined ||
     process.env.RAILWAY_PROJECT_ID !== undefined;
 
+  // Render detection (https://render.com) — Node.js PaaS with free tier
+  const isRender = process.env.RENDER !== undefined ||
+    process.env.RENDER_SERVICE_ID !== undefined ||
+    (typeof process.env.RENDER_SERVICE_NAME !== 'undefined');
+
+  // Netlify detection (https://netlify.com) — serverless edge functions
+  const isNetlify = process.env.NETLIFY !== undefined ||
+    process.env.NETLIFY_DEV !== undefined ||
+    process.env.CONTEXT !== undefined;
+
+  // Google Cloud Run detection — container-based serverless
+  const isCloudRun = process.env.K_SERVICE !== undefined ||
+    process.env.K_CONFIGURATION !== undefined ||
+    process.env.GAE_SERVICE !== undefined;
+
   // Get available RAM
   const totalRAM = os.totalmem();
   const freeRAM = os.freemem();
@@ -74,6 +89,9 @@ function detectPlatform() {
     isDocker,
     isCI,
     isRailway,
+    isRender,
+    isNetlify,
+    isCloudRun,
     isLowRAM,
     totalRAM,
     freeRAM,
@@ -235,6 +253,50 @@ function getPlatformConfig(platformInfo) {
     console.log('🚄 Railway detected - configuring for managed PaaS...');
     console.log('   - Using injected PORT (do not hardcode)');
     console.log('   - Using sql.js (ephemeral disk)');
+  }
+
+  // Render-specific configuration (Node.js PaaS, free tier)
+  if (isRender) {
+    // Render injects PORT at runtime
+    config.env.HOSTNAME = '0.0.0.0';
+    // Render free tier has ephemeral disk — use sql.js
+    config.env.USE_SQLJS = '1';
+    config.env.DATA_DIR = process.env.DATA_DIR || '/tmp/.9router';
+    // Render free tier sleeps after 15min idle — keep alive with background ping
+    config.env.LOG_LEVEL = 'warn';
+
+    console.log('🌐 Render detected - configuring for PaaS...');
+    console.log('   - Using injected PORT (do not hardcode)');
+    console.log('   - Using sql.js (ephemeral disk)');
+    console.log('   - Free tier: 750h/month, sleeps after 15min idle');
+  }
+
+  // Netlify-specific configuration (serverless edge functions)
+  if (isNetlify) {
+    // Netlify handles routing — no need to set PORT
+    config.env.HOSTNAME = '0.0.0.0';
+    // Netlify is serverless — stateless, use env vars for config
+    config.env.USE_SQLJS = '1';
+    config.env.DATA_DIR = '/tmp/.9router';
+    config.env.LOG_LEVEL = 'warn';
+
+    console.log('🔷 Netlify detected - configuring for serverless...');
+    console.log('   - Serverless edge functions');
+    console.log('   - Stateless: use env vars for persistence');
+  }
+
+  // Google Cloud Run-specific configuration (container-based serverless)
+  if (isCloudRun) {
+    // Cloud Run injects PORT (default 8080, but Dockerfile sets 20128)
+    config.env.HOSTNAME = '0.0.0.0';
+    // Cloud Run containers have ephemeral disk — use sql.js
+    config.env.USE_SQLJS = '1';
+    config.env.DATA_DIR = process.env.DATA_DIR || '/tmp/.9router';
+
+    console.log('☁️  Google Cloud Run detected - configuring for container...');
+    console.log('   - Container-based serverless');
+    console.log('   - Using sql.js (ephemeral disk)');
+    console.log('   - Auto-scale 0 → N');
   }
   
   // Windows-specific configuration
