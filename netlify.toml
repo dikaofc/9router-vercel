@@ -1,5 +1,6 @@
 [build]
-  command = "npm install && npm run build"
+  # Skip postbuild (copy-standalone-assets) — standalone output is disabled on Netlify
+  command = "npm install && next build --webpack"
   publish = ".next"
 
 [build.environment]
