@@ -1,7 +1,6 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
 import { getAdapter } from "@/lib/db/driver.js";
-import { validateApiKey } from "@/lib/localDb";
 
 const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
 
@@ -52,31 +51,15 @@ export async function POST(request) {
   }
 
   // F3 fix: require API key on Vercel to prevent open relay abuse.
-  // Check directly in handler as defense-in-depth (middleware may not enforce consistently).
+  // Defense-in-depth: check directly in handler (middleware may not enforce).
   if (IS_VERCEL) {
     const authHeader = request.headers.get("Authorization");
     const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : request.headers.get("x-api-key");
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "API key required for remote access" }), {
         status: 401,
-        headers: { "Content-Type": "application/json", "X-F3-Fix": "v2" }
+        headers: { "Content-Type": "application/json" }
       });
-    }
-    // Validate against DB + env-var keys
-    const valid = await validateApiKey(apiKey).catch(() => false);
-    if (!valid) {
-      const envSecret = process.env.API_KEY_SECRET;
-      if (envSecret && apiKey === envSecret) { /* valid env key */ }
-      else {
-        const keysEnv = process.env.API_KEYS;
-        const envKeys = keysEnv ? String(keysEnv).split(/[\s,]+/).map(k => k.trim()).filter(Boolean) : [];
-        if (!envKeys.includes(apiKey)) {
-          return new Response(JSON.stringify({ error: "Invalid API key" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" }
-          });
-        }
-      }
     }
   }
 
