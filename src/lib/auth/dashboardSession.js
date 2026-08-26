@@ -19,14 +19,24 @@ function getHmacSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     if (IS_VERCEL) {
-      // On Vercel without JWT_SECRET: generate a random per-cold-start secret.
-      // Sessions won't survive cold starts, but the app works. Once the user
-      // sets JWT_SECRET, sessions become stable. This replaces the old
-      // deterministic fallback (sha256 of project name) which was guessable.
+      // On Vercel without JWT_SECRET: derive a DETERMINISTIC secret from
+      // VERCEL_PROJECT_ID so Edge middleware and serverless API routes share
+      // the same HMAC key. VERCEL_PROJECT_ID is a UUID not exposed in URLs
+      // (unlike VERCEL_PROJECT_NAME), so this is safe. Previous random-per-
+      // cold-start approach broke login because Edge and serverless are
+      // different processes with different random secrets.
       if (!_perColdStartSecret) {
-        _perColdStartSecret = crypto.randomBytes(32).toString("hex");
-        console.warn("[Auth] No JWT_SECRET set on Vercel — using random per-cold-start secret. " +
-          "Sessions will not survive cold starts. Set JWT_SECRET in Vercel env vars.");
+        const projectId = process.env.VERCEL_PROJECT_ID || "";
+        if (projectId) {
+          _perColdStartSecret = crypto.createHash("sha256")
+            .update(`9router-hmac:${projectId}`)
+            .digest("hex");
+        } else {
+          // Fallback: random (won't survive cold starts)
+          _perColdStartSecret = crypto.randomBytes(32).toString("hex");
+          console.warn("[Auth] No JWT_SECRET or VERCEL_PROJECT_ID on Vercel — " +
+            "sessions will not survive cold starts. Set JWT_SECRET in Vercel env vars.");
+        }
       }
       return _perColdStartSecret;
     }
