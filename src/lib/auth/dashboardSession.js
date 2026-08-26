@@ -9,19 +9,40 @@ import { getSettings } from "@/lib/localDb";
 const DEFAULT_PASSWORD = "123456";
 const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
 
-// Simple HMAC secret for Vercel (deterministic, no JWT needed)
+// Session expiry: 24 hours in milliseconds
+const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+// Get HMAC secret — CRITICAL: must be set via JWT_SECRET env var on Vercel.
+// The old deterministic fallback (sha256 of project name) was guessable
+// because VERCEL_PROJECT_NAME is public in the deploy URL.
 function getHmacSecret() {
-  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-  return crypto.createHash('sha256').update('9router-vercel-' + (process.env.VERCEL_PROJECT_NAME || 'default')).digest('hex');
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (IS_VERCEL) {
+      // Fail closed on Vercel — no deterministic fallback
+      throw new Error(
+        "JWT_SECRET env var is required on Vercel. " +
+        "Set it in Vercel Dashboard → Settings → Environment Variables. " +
+        "Generate one with: openssl rand -hex 32"
+      );
+    }
+    // Local dev: generate a random secret (stored in file by loadJwtSecret)
+    return null;
+  }
+  return secret;
 }
 
 function loadJwtSecret() {
-  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  const envSecret = process.env.JWT_SECRET;
+  if (envSecret) return envSecret;
 
   if (IS_VERCEL) {
-    return getHmacSecret();
+    // Fail closed — getHmacSecret() will throw
+    getHmacSecret();
+    return "unreachable";
   }
 
+  // Local dev: use file-based random secret
   const file = path.join(DATA_DIR, "jwt-secret");
   try {
     return fs.readFileSync(file, "utf8").trim();
@@ -63,14 +84,17 @@ export async function createDashboardAuthToken(claims = {}) {
 export async function verifyDashboardAuthToken(token) {
   if (!token) return false;
 
-  // On Vercel: verify simple HMAC cookie
+  // On Vercel: verify simple HMAC cookie with expiry check
   if (IS_VERCEL) {
     try {
       const decoded = JSON.parse(Buffer.from(token, "base64").toString());
       const expectedSig = crypto.createHmac("sha256", getHmacSecret()).update(decoded.p).digest("hex");
       if (decoded.s !== expectedSig) return false;
       const payload = JSON.parse(decoded.p);
-      return payload.authenticated === true;
+      // F2 fix: validate session expiry — forged/leaked cookies expire after 24h
+      if (payload.authenticated !== true) return false;
+      if (payload.ts && (Date.now() - payload.ts) > SESSION_MAX_AGE_MS) return false;
+      return true;
     } catch {
       return false;
     }
@@ -92,7 +116,10 @@ export async function getDashboardAuthSession(token) {
       const decoded = JSON.parse(Buffer.from(token, "base64").toString());
       const expectedSig = crypto.createHmac("sha256", getHmacSecret()).update(decoded.p).digest("hex");
       if (decoded.s !== expectedSig) return null;
-      return JSON.parse(decoded.p);
+      const payload = JSON.parse(decoded.p);
+      // F2 fix: validate session expiry
+      if (payload.ts && (Date.now() - payload.ts) > SESSION_MAX_AGE_MS) return null;
+      return payload;
     } catch {
       return null;
     }

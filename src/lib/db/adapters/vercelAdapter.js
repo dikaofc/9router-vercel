@@ -221,7 +221,7 @@ export async function seedFromEnv(adapter) {
 
   const defaultSettings = {
     requireLogin: true,  // Password protection ON (default: 123456)
-    requireApiKey: false,
+    requireApiKey: true, // F3 fix: require API key by default on Vercel to prevent open relay abuse
     rtkEnabled: true,
     headroomEnabled: true,
     headroomCompressUserMessages: true,

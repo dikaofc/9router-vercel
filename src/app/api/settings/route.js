@@ -89,8 +89,9 @@ export async function GET() {
       persistence
     }, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
-    console.log("Error getting settings:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // F7 fix: log only message, not full error object (avoids leaking PII/stack)
+    console.log("Error getting settings:", error?.message || error);
+    return NextResponse.json({ error: "Failed to get settings" }, { status: 500 });
   }
 }
 
@@ -193,7 +194,8 @@ export async function PATCH(request) {
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
-    console.log("Error updating settings:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // F7 fix: log only message, not full error object
+    console.log("Error updating settings:", error?.message || error);
+    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
   }
 }

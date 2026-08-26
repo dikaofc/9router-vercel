@@ -22,16 +22,13 @@ function killMitmByPidFile() {
     if (!pid) return;
 
     if (process.platform === "win32") {
-      // taskkill first (works if same user); fallback to PowerShell Stop-Process which can kill admin process if our token allows
-      try { execSync(`taskkill /F /T /PID ${pid}`, { stdio: "ignore", windowsHide: true, timeout: 3000 }); } catch {
-        try { execSync(`powershell -NonInteractive -WindowStyle Hidden -Command "Stop-Process -Id ${pid} -Force"`, { stdio: "ignore", windowsHide: true, timeout: 3000 }); } catch { /* best effort */ }
-      }
-    } else {
-      try {
-        execSync(`sudo -n kill -9 ${pid} 2>/dev/null`, { stdio: "ignore", timeout: 3000 });
-      } catch {
+      // F5 fix: use process.kill() instead of shell execSync to avoid shell injection
+      try { process.kill(pid, "SIGTERM"); } catch {
         try { process.kill(pid, "SIGKILL"); } catch { /* best effort */ }
       }
+    } else {
+      // F5 fix: use process.kill() instead of shell execSync
+      try { process.kill(pid, "SIGKILL"); } catch { /* best effort */ }
     }
     try { fs.unlinkSync(mitmPidFile); } catch { /* best effort */ }
   } catch { /* best effort */ }
