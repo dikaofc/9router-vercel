@@ -1,5 +1,4 @@
 [build]
-  # Skip postbuild (copy-standalone-assets) — standalone output is disabled on Netlify
   command = "npm install && next build --webpack"
   publish = ".next"
 
@@ -7,10 +6,6 @@
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_ENV = "production"
-
-# Netlify Next.js Runtime plugin — handles SSR, API routes, rewrites, middleware
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
 
 # CORS headers for API routes
 [[headers]]
