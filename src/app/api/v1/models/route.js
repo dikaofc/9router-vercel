@@ -326,6 +326,17 @@ export async function buildModelsList(kindFilter, options = {}) {
       }
     }
 
+    // Inject models not in the upstream catalog but confirmed available (e.g. ox-alpha-free)
+    for (const [alias, extraIds] of Object.entries({ oc: ["ox-alpha-free"] })) {
+      const providerId = aliasToProviderId[alias] || alias;
+      if (!providerMatchesKinds(providerId, kindFilter)) continue;
+      const existingIds = new Set(models.filter(m => m.id?.startsWith(`${alias}/`)).map(m => m.id.slice(alias.length + 1)));
+      for (const modelId of extraIds) {
+        if (existingIds.has(modelId) || isDisabled(alias, modelId)) continue;
+        models.push({ id: `${alias}/${modelId}`, object: "model", owned_by: alias });
+      }
+    }
+
     for (const customModel of customModels) {
       if (!customModel?.id || (customModel.type && customModel.type !== "llm")) continue;
       // Custom models without active connection are LLM-only by current schema
