@@ -124,6 +124,7 @@ import p121 from "./alitp-intl.js";
 import p122 from "./vireonix.js";
 import p123 from "./cehpoint.js";
 import p124 from "./blockrun.js";
+import p125 from "./ovhcloud.js";
 
 export default [
   p0,
@@ -249,4 +250,5 @@ export default [
   p122,
   p123,
   p124,
+  p125,
 ];
