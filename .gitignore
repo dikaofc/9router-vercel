@@ -105,3 +105,6 @@ termux.properties
 .bash_history
 .mostrc
 .neofetch/
+
+# Local home-dir artifacts (never commit)
+~/
