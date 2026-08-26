@@ -145,7 +145,7 @@ function getMemoryConfig(platformInfo, forceLowMemory = false) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function getPlatformConfig(platformInfo) {
-  const { isTermux, isWSL, isDocker, platform } = platformInfo;
+  const { isTermux, isWSL, isDocker, isRailway, platform } = platformInfo;
   
   const config = {
     // Default environment variables

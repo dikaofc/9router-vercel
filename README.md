@@ -720,6 +720,7 @@ On serverless (Vercel) and fresh installs, 9Router ships a managed **`free-first
 | **Windows** | `start-windows.bat` | PowerShell detection | Batch script |
 | **macOS** | `npm run start` | Standard | Tray icon support |
 | **Android Termux** | `npm run start:termux` | Low memory mode | No native build required |
+| **Railway** | `npm run start:railway` | Auto-detect RAM | Ephemeral disk → sql.js |
 
 #### 📱 Android Termux (Low-End Devices)
 
