@@ -2,8 +2,6 @@ import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
 import { getAdapter } from "@/lib/db/driver.js";
 
-const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
-
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -50,20 +48,5 @@ export async function POST(request) {
     initialized = true;
   }
 
-  // F3 fix: require API key on Vercel to prevent open relay abuse.
-  // Defense-in-depth: check directly in handler (middleware may not enforce).
-  if (IS_VERCEL) {
-    const authHeader = request.headers.get("Authorization");
-    const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : request.headers.get("x-api-key");
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "API key required for remote access" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" }
-      });
-    }
-  }
-
   return await handleChat(request);
 }
-
-// 1787744438
