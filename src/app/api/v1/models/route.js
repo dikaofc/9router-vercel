@@ -535,7 +535,7 @@ export async function buildModelsList(kindFilter, options = {}) {
   // Inject models not in the upstream catalog but confirmed available.
   // These are added after the main loop so they appear regardless of whether
   // the provider has a connection or uses static PROVIDER_MODELS.
-  const EXTRA_MODELS = { oc: ["ox-alpha-free"] };
+  const EXTRA_MODELS = {};
   for (const [alias, extraIds] of Object.entries(EXTRA_MODELS)) {
     const existingIds = new Set(models.filter(m => m.id?.startsWith(`${alias}/`)).map(m => m.id.slice(alias.length + 1)));
     for (const modelId of extraIds) {
