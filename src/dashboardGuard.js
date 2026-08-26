@@ -125,11 +125,16 @@ async function hasValidApiKey(request) {
 }
 
 async function canAccessPublicLlmApi(request) {
-  // Default-OPEN: the public LLM API is reachable by anyone UNLESS the operator
-  // has explicitly turned API-key auth ON (Settings → Security → requireApiKey).
-  // This is the intended mode for a personal deployment whose CLI agents call
-  // /v1 directly without a registered key — a transient settings-load failure
-  // must NOT slam the API shut and 401 every agent.
+  // Vercel deployments are ALWAYS public-facing — requireApiKey is enforced
+  // unconditionally to prevent open relay abuse (F3 fix). The KV re-sync can
+  // overwrite the DB fix with stale requireApiKey=false, so we hardcode this
+  // here as a belt-and-suspenders guard.
+  if (IS_VERCEL) {
+    if (isLocalRequest(request)) return true;
+    if (await hasValidCliToken(request)) return true;
+    return await hasValidApiKey(request);
+  }
+  // Self-host: default-OPEN unless the operator turned API-key auth ON.
   const settings = await loadSettings();
   if (!settings || settings.requireApiKey !== true) return true;
   if (isLocalRequest(request)) return true;
