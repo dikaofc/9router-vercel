@@ -1,3 +1,22 @@
+# v0.5.57 (2026-08-26)
+
+## Features
+- **Providers**: add Pollinations AI as free provider (no auth required, OpenAI-compatible endpoint)
+- **Cross-platform**: add universal start script (start-platform.js) with auto-detection for Termux/Windows/VPS
+- **Android/Termux**: low memory optimization (256MB-1024MB based on RAM), no detach (keeps terminal alive), sql.js fallback
+- **Windows**: batch script with PowerShell system detection and memory optimization
+- **Linux VPS**: systemd service support, daemon mode, log rotation
+- **Memory**: auto-detect RAM and adjust Node.js heap limits for low-end devices
+
+## npm Scripts
+- `npm run start:termux` - Start on Android Termux
+- `npm run start:windows` - Start on Windows
+- `npm run start:vps` - Start on Linux VPS
+- `npm run start:platform` - Auto-detect platform and start
+- `npm run start:low-memory` - Force low memory mode
+
+---
+
 # v0.5.56 (2026-08-23)
 
 ## Features

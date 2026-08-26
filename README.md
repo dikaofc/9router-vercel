@@ -371,6 +371,11 @@ Default URLs:
         <b>Vertex AI</b><br/>
         <sub>Gemini 3 Pro + GLM-5 + DeepSeek<br/>$300 credits free</sub>
       </td>
+      <td align="center" width="150">
+        <span style="font-size:50px">🌿</span><br/>
+        <b>Pollinations AI</b><br/>
+        <sub>No auth • OpenAI-compatible<br/>Free (rate-limited)</sub>
+      </td>
     </tr>
   </table>
 </div>
@@ -700,6 +705,90 @@ On serverless (Vercel) and fresh installs, 9Router ships a managed **`free-first
 - 🚀 **Cloudflare Workers** - Global edge network
 - ▲ **Vercel** - Serverless; recommend the **Hobby** plan (`maxDuration` 300s, no Pro needed). State persists via Upstash (primary) → Supabase → KV → in-memory; writes flush before the lambda freezes so toggles/keys/combos survive cold starts. The zero-key `free-first` combo works out-of-the-box — no API key required.
   - Required env (Vercel dashboard, never committed): `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or Vercel KV), `JWT_SECRET`, and `INITIAL_PASSWORD` (override the `123456` default). `API_KEY_SECRET`/`API_KEYS` optional for CLI auth.
+- 📱 **Android Termux** - Run on Android phones/tablets with low memory optimization
+- 🪟 **Windows** - Native Windows support with batch scripts
+
+### 📱 Cross-Platform Support
+
+9Router runs on multiple platforms with automatic optimization:
+
+| Platform | Command | Memory Optimization | Notes |
+|----------|---------|---------------------|-------|
+| **Linux VPS** | `npm run start:vps` | Auto-detect RAM | Systemd service support |
+| **Docker** | `docker run decolua/9router` | Container limits | Multi-arch (amd64/arm64) |
+| **Windows** | `start-windows.bat` | PowerShell detection | Batch script |
+| **macOS** | `npm run start` | Standard | Tray icon support |
+| **Android Termux** | `npm run start:termux` | Low memory mode | No native build required |
+
+#### 📱 Android Termux (Low-End Devices)
+
+Run 9Router on Android phones with as little as 1GB RAM:
+
+```bash
+# Install dependencies
+pkg install nodejs npm
+
+# Clone and build
+git clone https://github.com/decolua/9router-vercel.git
+cd 9router-vercel
+npm install
+npm run build
+
+# Start (auto-detects Termux and optimizes)
+npm run start:termux
+
+# Or force low memory mode (for very old devices)
+npm run start:low-memory
+```
+
+**Memory optimization:**
+- `< 1GB RAM`: 256MB Node.js heap
+- `1-2GB RAM`: 384MB Node.js heap
+- `2-4GB RAM`: 512MB Node.js heap
+- `> 4GB RAM`: 1024MB Node.js heap
+
+**Features:**
+- ✅ Terminal stays alive (no detach)
+- ✅ Uses sql.js (no native build required)
+- ✅ Graceful shutdown handling
+- ✅ SIGHUP handling (terminal close)
+
+#### 🪟 Windows
+
+```cmd
+# Install Node.js from https://nodejs.org/
+# Clone and build
+git clone https://github.com/decolua/9router-vercel.git
+cd 9router-vercel
+npm install
+npm run build
+
+# Start
+start-windows.bat
+
+# Or with custom port
+start-windows.bat --port 3000
+```
+
+#### 🐧 Linux VPS
+
+```bash
+# Install Node.js
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Clone and build
+git clone https://github.com/decolua/9router-vercel.git
+cd 9router-vercel
+npm install
+npm run build
+
+# Start (with systemd service support)
+bash start-vps.sh --install-service
+
+# Or start as daemon
+bash start-vps.sh --daemon
+```
 
 </details>
 
