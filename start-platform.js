@@ -70,8 +70,7 @@ function detectPlatform() {
 
   // Google Cloud Run detection — container-based serverless
   const isCloudRun = process.env.K_SERVICE !== undefined ||
-    process.env.K_CONFIGURATION !== undefined ||
-    process.env.GAE_SERVICE !== undefined;
+    process.env.K_CONFIGURATION !== undefined;
 
   // Get available RAM
   const totalRAM = os.totalmem();
