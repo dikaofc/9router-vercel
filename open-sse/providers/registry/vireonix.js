@@ -16,6 +16,7 @@ export default {
   },
   category: "free",
   noAuth: true,
+  featured: true,
   transport: {
     baseUrl: "https://vireonix.ai/v1/chat/completions",
     noAuth: true,

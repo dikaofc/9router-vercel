@@ -16,6 +16,7 @@ export default {
   },
   category: "free",
   noAuth: true,
+  featured: true,
   transport: {
     baseUrl: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
     noAuth: true,

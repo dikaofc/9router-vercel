@@ -16,6 +16,7 @@ export default {
   },
   category: "free",
   noAuth: true,
+  featured: true,
   transport: {
     baseUrl: "https://blockrun.ai/api/v1/chat/completions",
     noAuth: true,

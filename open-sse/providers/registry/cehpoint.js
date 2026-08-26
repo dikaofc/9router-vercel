@@ -16,6 +16,7 @@ export default {
   },
   category: "free",
   noAuth: true,
+  featured: true,
   transport: {
     baseUrl: "https://ai-api.cehpoint.co.in/v1/chat/completions",
     noAuth: true,

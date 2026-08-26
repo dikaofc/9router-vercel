@@ -789,3 +789,44 @@ button:disabled,
 .dark .changelog-body hr {
   border-top-color: #ffffff;
 }
+
+/* Featured provider glow animation */
+@keyframes featured-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px 2px rgba(34, 197, 94, 0.3), 0 0 20px 4px rgba(34, 197, 94, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 14px 4px rgba(34, 197, 94, 0.5), 0 0 30px 8px rgba(34, 197, 94, 0.25);
+  }
+}
+.dark .featured-provider-card {
+  animation: featured-glow 2.5s ease-in-out infinite;
+}
+.light .featured-provider-card,
+:not(.dark) .featured-provider-card {
+  animation: featured-glow 2.5s ease-in-out infinite;
+}
+.featured-provider-card {
+  border: 2px solid rgba(34, 197, 94, 0.5) !important;
+  position: relative;
+}
+.featured-provider-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, #22c55e, #3b82f6, #a855f7, #22c55e);
+  background-size: 300% 300%;
+  animation: gradient-rotate 4s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+@keyframes gradient-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
