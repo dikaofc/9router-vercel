@@ -32,10 +32,15 @@ const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex"];
 const ALWAYS_PROTECTED = [
   // Combo management — prevent unauthenticated model routing manipulation
   "/api/combos",
-  // These are local-only on self-host, but always protected on Vercel too
-  ...(IS_VERCEL ? [] : [
-    "/api/shutdown", "/api/settings/database", "/api/version/shutdown",
-    "/api/version/update", "/api/oauth/cursor/auto-import", "/api/oauth/kiro/auto-import",
+  // Version/shutdown/update — force auth even on Vercel to prevent
+  // unauthenticated forced update/relaunch (N1 fix)
+  "/api/version/update", "/api/version/shutdown", "/api/shutdown",
+  "/api/settings/database",
+  ...(IS_VERCEL ? [
+    // On Vercel these are useless + dangerous: block unauthenticated access
+    "/api/oauth/cursor/auto-import", "/api/oauth/kiro/auto-import",
+  ] : [
+    "/api/oauth/cursor/auto-import", "/api/oauth/kiro/auto-import",
   ]),
 ];
 
