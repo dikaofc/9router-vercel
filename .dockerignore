@@ -44,5 +44,6 @@ cli
 docs
 .gitbook
 
-# Scripts (not needed in runtime)
-scripts
+# Scripts (postbuild hook run `copy-standalone-assets.mjs` at build time;
+# the Dockerfile copies only selected paths into the runtime image, so the
+# scripts/ dir never lands in the final layer — safe to keep in build context).
