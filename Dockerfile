@@ -12,6 +12,8 @@ RUN npm install
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
+# Limit Node.js heap to 512MB to prevent OOM (exit 137) during build
+ENV NODE_OPTIONS='--max-old-space-size=512'
 RUN npm run build
 
 FROM ${NODE_IMAGE} AS runner

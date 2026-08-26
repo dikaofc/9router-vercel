@@ -11,9 +11,11 @@ NODE_ENV = "production"
 NEXT_TELEMETRY_DISABLED = "1"
 DATA_DIR = "/tmp/.9router"
 USE_SQLJS = "1"
+NODE_OPTIONS = "--max-old-space-size=384"
+NEXT_WORKER_COUNT = "1"
 
 [languages.javascript]
 pattern = "**/*.js"
 
 [deployment]
-run = ["sh", "-c", "npm install && npm run build && node custom-server.js"]
+run = ["sh", "-c", "npm install && npm run build:low-mem && node custom-server.js"]

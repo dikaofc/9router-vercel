@@ -54,6 +54,8 @@ const nextConfig = {
     // Tree-shake heavy barrel imports to cut compile + bundle size
     optimizePackageImports: ["@xyflow/react", "@dnd-kit/core", "@dnd-kit/sortable", "material-symbols", "marked"],
   },
+  // Reduce webpack parallel workers to save memory (exit 137 = OOM)
+  // Free tier hosts (Glitch, Replit, Netlify) have 256-512MB RAM
   webpack: (config, { isServer }) => {
     // Ignore fs/path modules in browser bundle
     if (!isServer) {
@@ -62,6 +64,12 @@ const nextConfig = {
         fs: false,
         path: false,
       };
+    }
+    // Limit webpack workers to prevent OOM on low-memory hosts
+    config.parallelism = 1;
+    // Disable source maps in production to save memory
+    if (process.env.NODE_ENV === 'production') {
+      config.devtool = false;
     }
     // Exclude non-source dirs from watcher to reduce inotify load
     config.watchOptions = {

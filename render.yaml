@@ -3,7 +3,7 @@ services:
     name: 9router
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && NODE_OPTIONS='--max-old-space-size=384' npm run build
     startCommand: node custom-server.js
     healthCheckPath: /api/health
     envVars:
