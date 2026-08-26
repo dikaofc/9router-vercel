@@ -2,26 +2,25 @@
 
 ## Kenapa Netlify?
 
-- ✅ **Free** (Hobby plan: 100GB bandwidth/month, 125K function invocations)
+- ✅ **Free** (Hobby plan: 100GB bandwidth/month)
 - ✅ **Auto-deploy** dari GitHub (push to deploy)
 - ✅ **HTTPS** otomatis
 - ✅ **Custom domain** gratis
-- ✅ **Edge functions** global
-- ✅ **Serverless** — mirip Vercel
+- ✅ **Serverless** — mirip Vercel, pakai `@netlify/plugin-nextjs`
 
 ## ⚠️ Feature Support
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| API Proxy (/v1) | ✅ Works | Core functionality via edge functions |
+| API Proxy (/v1) | ✅ Works | Serverless functions |
 | Dashboard | ✅ Works | UI berjalan normal |
 | Provider Connections | ⚠️ Seeded from env | Setiap cold start re-seed |
 | OAuth Login | ⚠️ Manual setup | Perlu configure callback URL |
 | Token Refresh | ❌ Not supported | No persistent background process |
 | MITM/TLS | ❌ Not supported | Need persistent process |
 | Cloudflare Tunnel | ❌ Not supported | Netlify sudah punya domain sendiri |
-| SAML SSO | ❌ Not supported | Local-only IdP flow blocked on Netlify |
-| File Persistence | ⚠️ Via env vars | Pakai env vars untuk persist config |
+| SAML SSO | ❌ Not supported | Local-only IdP flow blocked |
+| File Persistence | ⚠️ Via env vars | Pakai Upstash/Redis untuk persist |
 
 ## 📋 Setup Instructions
 
@@ -39,7 +38,7 @@ git push origin main
 2. Login dengan GitHub
 3. Click **"Add new site"** → **"Import an existing project"**
 4. Select repository `YOUR_USERNAME/9router`
-5. Build settings akan auto-detect (sudah ada di `netlify.toml`)
+5. Build settings: Netlify akan auto-detect dari `netlify.toml`
 
 ### 3. Set Environment Variables
 
@@ -52,31 +51,21 @@ Buka Netlify Dashboard → Site → Build & Deploy → Environment
 | `JWT_SECRET` | `your-random-string-min-32-chars` | Untuk session auth |
 | `INITIAL_PASSWORD` | `your-secure-password` | Password dashboard |
 
-**Optional — API Key:**
+**Optional — Persistence (survive cold starts):**
 
 | Variable | Value | Notes |
 |----------|-------|-------|
-| `API_KEY_SECRET` | `sk_your_api_key` | Untuk authenticate CLI tools |
-| `API_KEYS` | `sk-key1,sk-key2` | Multiple API keys (comma-separated) |
+| `UPSTASH_REDIS_REST_URL` | `https://xxx.upstash.io` | Upstash Redis |
+| `UPSTASH_REDIS_REST_TOKEN` | `xxx` | Upstash Redis |
 
 **Optional — Provider API Keys (add yang kamu punya):**
 
 | Variable | Value |
 |----------|-------|
-| `PROVIDER_GLM_API_KEY` | `your-zhipu-key` |
-| `PROVIDER_MINIMAX_API_KEY` | `your-minimax-key` |
-| `PROVIDER_DEEPSEEK_API_KEY` | `your-deepseek-key` |
 | `PROVIDER_GROQ_API_KEY` | `your-groq-key` |
-| `PROVIDER_KIMI_API_KEY` | `your-kimi-key` |
+| `PROVIDER_DEEPSEEK_API_KEY` | `your-deepseek-key` |
 | `PROVIDER_OPENAI_API_KEY` | `your-openai-key` |
 | `PROVIDER_ANTHROPIC_API_KEY` | `your-anthropic-key` |
-
-**Or use generic provider:**
-
-| Variable | Value |
-|----------|-------|
-| `PROVIDER_NAME` | `openai` |
-| `PROVIDER_API_KEY` | `sk-xxxx` |
 
 ### 4. Deploy
 
@@ -97,14 +86,6 @@ export ANTHROPIC_API_KEY="sk_your_api_key"
 claude --model cc/claude-opus-4-7
 ```
 
-### Codex CLI
-
-```bash
-export OPENAI_BASE_URL="https://your-project.netlify.app"
-export OPENAI_API_KEY="sk_your_api_key"
-codex "your prompt"
-```
-
 ### Cursor IDE
 
 ```
@@ -114,56 +95,32 @@ Settings → Models → Advanced:
   Model: cc/claude-opus-4-7
 ```
 
-### Cline / Continue / RooCode
-
-```
-Provider: OpenAI Compatible
-Base URL: https://your-project.netlify.app/v1
-API Key: sk_your_api_key
-Model: cc/claude-opus-4-7
-```
-
 ## 🐛 Troubleshooting
 
-### "No active credentials for provider"
-Pastikan kamu sudah set `PROVIDER_*_API_KEY` environment variables di Netlify.
+### Build fails — "Cannot find module @netlify/plugin-nextjs"
+Netlify auto-install plugin saat build. Kalau gagal, tambah ke `package.json`:
+```bash
+npm install -D @netlify/plugin-nextjs
+```
 
-### "Unauthorized" error
-Pastikan `API_KEY_SECRET` sudah di-set dan kamu pakai key yang sama di CLI tool.
+### "Function timeout"
+Netlify free tier: 10 detik function timeout. Untuk streaming yang lama, pertimbangkan platform lain (Railway/Render).
 
-### Build fails
-Cek build logs di Netlify Dashboard → Deploys → Logs.
+### Cold start lambat
+Normal untuk serverless. Setelah warm, response time normal.
 
-### Function timeout
-Netlify free tier punya function timeout 10 detik. Untuk streaming, pakai edge functions.
-
-## 💡 Tips
-
-1. **Gunakan combo model** untuk auto-fallback:
-   - Buat combo di dashboard
-   - Pakai nama combo sebagai model name
-
-2. **Monitor usage** di dashboard:
-   - `/dashboard` → Usage tab
-   - Track token consumption
-
-3. **Add multiple providers** untuk redundancy:
-   - Set lebih dari 1 `PROVIDER_*_API_KEY`
-   - Auto-fallback kalau salah satu down
-
-4. **Custom domain** (opsional):
-   - Netlify Dashboard → Domain Management
+### Dashboard kosong
+State di-reset setiap cold start. Pakai env vars untuk persist config.
 
 ---
 
 ## ⚙️ Netlify Build & Runtime Notes
 
-- **Build**: Netlify menjalankan `npm run build` saat deploy.
-- **Functions**: Serverless functions untuk API routes. Edge functions untuk `/v1/*`.
-- **Timeout**: Free tier = 10 detik function timeout. Edge functions lebih cepat.
-- **Cold start**: Serverless functions punya cold start ~1-3 detik.
-- **State**: Stateless — pakai env vars untuk persist config.
-- **PORT**: Netlify handle routing sendiri. Tidak perlu set PORT.
+- **Plugin**: `@netlify/plugin-nextjs` handle SSR, API routes, rewrites, middleware.
+- **Output**: Tidak pakai `output: "standalone"` — Netlify handle serverless routing sendiri.
+- **Stateless**: Tidak ada persistent process. Cold start = re-seed dari env vars.
+- **PORT**: Netlify handle routing. Tidak perlu set PORT.
+- **Timeout**: Free tier = 10 detik function timeout.
 
 ## 💖 Credits
 

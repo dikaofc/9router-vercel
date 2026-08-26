@@ -9,15 +9,17 @@ const tracingRoot = process.env.NEXT_TRACING_ROOT_MODE === "workspace"
   : projectRoot;
 const proxyClientMaxBodySize = process.env.NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE || "128mb";
 
-// Detect Vercel — standalone output not needed (Vercel handles serverless)
+// Detect serverless platforms — standalone output not needed (they handle routing)
 const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
+const IS_NETLIFY = !!(process.env.NETLIFY || process.env.CONTEXT);
+const IS_SERVERLESS_PLATFORM = IS_VERCEL || IS_NETLIFY;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // On Vercel, don't use standalone output — Vercel uses its own serverless runtime
   // On other platforms (Docker, VPS), keep standalone for the custom server
-  ...(IS_VERCEL ? {} : { output: "standalone" }),
+  ...(IS_SERVERLESS_PLATFORM ? {} : { output: "standalone" }),
   // `open` must stay external. It derives its own directory from `import.meta.url`, and
   // webpack replaces that with the absolute path of the BUILD machine as a string literal.
   // A release built on macOS therefore ships `file:///Users/.../open/index.js`, which

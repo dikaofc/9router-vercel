@@ -1,14 +1,17 @@
 [build]
-  command = "npm run build"
+  command = "npm install && npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
+  NODE_ENV = "production"
 
+# Netlify Next.js Runtime plugin — handles SSR, API routes, rewrites, middleware
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# CORS headers for API routes
 [[headers]]
   for = "/v1/*"
   [headers.values]
@@ -22,16 +25,3 @@
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization, X-API-Key"
-
-[functions]
-  directory = ".netlify/functions"
-  node_bundler = "esbuild"
-  included_files = ["open-sse/**", "src/**", "public/**"]
-
-[[edge_functions]]
-  path = "/v1/*"
-  function = "v1-proxy"
-
-[[edge_functions]]
-  path = "/api/v1/*"
-  function = "v1-proxy"
