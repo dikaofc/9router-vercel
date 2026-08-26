@@ -1,62 +1,73 @@
-# 🚂 Deploy 9Router to Railway — Free Hosting
+# 🚂 Deploy 9Router ke Railway
 
-Railway is a long-lived PaaS (not serverless like Vercel). It runs 9Router as a
-persistent Node process, injects the listen port via the `PORT` env var, and
-provides a rolling HTTP **healthcheck** — so the dashboard, background token
-refresh, and persistent SQLite all work, unlike Vercel's frozen lambda.
+> Persistent process, SQLite persistence, push to deploy.
 
-## Feature support
+## Kenapa Railway?
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| API Proxy (/v1) | ✅ Works | Core functionality |
-| Dashboard | ✅ Works | UI runs normally |
-| Background token refresh | ✅ Works | Persistent process |
-| OAuth / token refresh | ✅ Works | Survives across requests |
-| SQLite persistence | ⚠️ Ephemeral | Disk resets on each deploy → sql.js used; point `DATA_DIR` at a Railway volume to persist |
-| MITM/TLS | ❌ Not supported | Needs privileged network access |
-| SAML SSO | ❌ Not supported | Local-only IdP flow |
+| | Railway |
+|--|---------|
+| Free | ✅ $5 credit/bulan |
+| Sleep | ❌ Gak sleep |
+| Cold start | ❌ Nol |
+| Persistent disk | ✅ Ya (volume) |
+| Full features | ✅ Semua (MITM, token refresh, dll) |
+
+**Railway = VPS gratis yang managed.** Push code, langsung deploy.
+
+---
 
 ## Setup
 
-### 1. Push to GitHub
+### 1. Push ke GitHub
 
 ```bash
-git add -A
-git commit -m "feat: add Railway hosting support"
 git push origin main
 ```
 
-### 2. Deploy on Railway
+### 2. Import ke Railway
 
-1. Go to https://railway.app → **New Project** → **Deploy from GitHub repo**.
-2. Select your fork of `9router-vercel`.
-3. Railway auto-detects the build via `railway.json` (Nixpacks → `npm run build`).
-4. Set the **Start Command** to `npm run start:railway` (this is preconfigured in `railway.json`).
-5. Add environment variables in the Railway dashboard (never commit secrets):
-   - `JWT_SECRET` — session cookie signer (required)
-   - `INITIAL_PASSWORD` — override the `123456` default (required)
-   - `API_KEY_SECRET` / `API_KEYS` — optional, for CLI auth
-   - `DATA_DIR` — optional; set to a mounted **Railway Volume** path to persist SQLite across deploys
+1. Buka https://railway.com/new
+2. Login GitHub
+3. **"Deploy from GitHub Repo"** → pilih repo
 
-### 3. Healthcheck
+### 3. Set Environment Variables
 
-Railway pings `GET /api/health`. `railway.json` already sets `healthcheckPath`.
-The endpoint returns `200` once the server is up.
+Railway Dashboard → Service → Variables
 
-## How it works
+| Variabel | Value |
+|----------|-------|
+| `JWT_SECRET` | string random 32+ karakter |
+| `INITIAL_PASSWORD` | password kamu |
+| `API_KEY_SECRET` | `sk_your_key` (opsional) |
 
-`start-platform.js` auto-detects Railway via the `RAILWAY_ENVIRONMENT` /
-`RAILWAY_SERVICE_ID` / `RAILWAY_PROJECT_ID` env vars and:
+### 4. Generate Domain
 
-- Binds `0.0.0.0` and uses the **injected `$PORT`** (never hardcoded).
-- Forces `USE_SQLJS=1` because Railway's image layer is read-only; sql.js keeps
-  the database in the writable `/tmp/.9router` (or your mounted volume).
-- Reuses the same Next.js standalone build/custom-server path as VPS/Docker.
+Railway Dashboard → Service → Settings → Networking → **Generate Domain**
 
-## Persisting data across deploys
+### 5. Akses
 
-Railway wipes the container filesystem on every deploy. To keep settings, keys,
-and usage history, mount a **Railway Volume** and set `DATA_DIR` to its path
-(e.g. `/data`). With a volume mounted, you can also drop `USE_SQLJS` and let the
-SQLite driver use a file backend for better performance.
+- Dashboard: `https://your-project.up.railway.app/dashboard`
+- API: `https://your-project.up.railway.app/v1`
+
+---
+
+## CLI Configuration
+
+```bash
+# Claude Code
+export ANTHROPIC_API_BASE="https://your-project.up.railway.app/v1"
+export ANTHROPIC_API_KEY="sk_your_key"
+
+# Cursor
+# Base URL: https://your-project.up.railway.app/v1
+```
+
+---
+
+## Troubleshooting
+
+| Error | Solusi |
+|-------|--------|
+| Build gagal (Dockerfile) | Railway pakai Dockerfile otomatis. Cek `railway.json`. |
+| "Not Found" | Service belum di-expose. Generate domain di Settings. |
+| Port error | Railway set PORT otomatis. Jangan hardcode. |
