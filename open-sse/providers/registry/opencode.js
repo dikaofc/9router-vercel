@@ -19,7 +19,9 @@ export default {
     },
     noAuth: true,
   },
-  models: [],
+  models: [
+    { id: "ox-alpha-free", name: "Ox Alpha Free", supportedFormats: ["openai", "claude", "openai-responses"] },
+  ],
   modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" },
   passthroughModels: true,
 };
