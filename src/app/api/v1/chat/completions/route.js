@@ -1,6 +1,9 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
 import { getAdapter } from "@/lib/db/driver.js";
+import { validateApiKey } from "@/lib/localDb";
+
+const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -46,6 +49,36 @@ export async function POST(request) {
     try { await Promise.all([initTranslators(), getAdapter()]); }
     catch { await initTranslators(); }
     initialized = true;
+  }
+
+  // F3 fix: require API key on Vercel to prevent open relay abuse.
+  // The middleware guard may not enforce this consistently due to KV re-sync
+  // overwriting the DB setting, so we check directly in the handler.
+  if (IS_VERCEL) {
+    const authHeader = request.headers.get("Authorization");
+    const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : request.headers.get("x-api-key");
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "API key required" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    // Validate against DB + env-var keys
+    const valid = await validateApiKey(apiKey).catch(() => false);
+    if (!valid) {
+      const envSecret = process.env.API_KEY_SECRET;
+      if (envSecret && apiKey === envSecret) { /* valid */ }
+      else {
+        const keysEnv = process.env.API_KEYS;
+        const envKeys = keysEnv ? String(keysEnv).split(/[\s,]+/).map(k => k.trim()).filter(Boolean) : [];
+        if (!envKeys.includes(apiKey)) {
+          return new Response(JSON.stringify({ error: "Invalid API key" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+      }
+    }
   }
 
   return await handleChat(request);
