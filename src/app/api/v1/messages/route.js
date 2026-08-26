@@ -1,20 +1,11 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
+import { getAdapter } from "@/lib/db/driver.js";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 let initialized = false;
-
-/**
- * Initialize translators once
- */
-async function ensureInitialized() {
-  if (!initialized) {
-    await initTranslators();
-    initialized = true;
-  }
-}
 
 /**
  * Handle CORS preflight
@@ -33,7 +24,14 @@ export async function OPTIONS() {
  * POST /v1/messages - Claude format (auto convert via handleChat)
  */
 export async function POST(request) {
-  await ensureInitialized();
+  // Pre-warm the DB adapter so the usage write path is not a cold-start chain
+  // that races the serverless freeze after the SSE response finishes.
+  if (!initialized) {
+    try { await Promise.all([initTranslators(), getAdapter()]); }
+    catch { await initTranslators(); }
+    initialized = true;
+  }
+
   return await handleChat(request);
 }
 
