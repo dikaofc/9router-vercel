@@ -7,6 +7,15 @@ import { resolveSessionId } from "../utils/sessionManager.js";
 const OPENCODE_UA = "opencode";
 const MESSAGES_MODELS = new Set();
 
+// Models listed by the upstream models API but that fail at /zen/v1/ because
+// they are only served on the /zen/go/v1/ endpoint (the "go" tier). The
+// upstream registers them under a client-facing id that includes a "-free"
+// suffix; the actual upstream model id is the base name without the suffix.
+// Remap in-flight so these models work through the free-tier executor.
+const UPSTREAM_MODEL_REMAP = {
+  "deepseek-v4-flash-free": "deepseek-v4-flash",
+};
+
 function generateRequestId() {
   return `msg_${crypto.randomUUID().replace(/-/g, "")}`;
 }
@@ -38,6 +47,10 @@ export class OpenCodeExecutor extends BaseExecutor {
 
   transformRequest(model, body, stream, credentials) {
     this._currentSessionId = resolveOpencodeSession(body, credentials);
+    // Remap models that the upstream lists but can only serve under their base id
+    const bodyModel = body?.model || model;
+    const remapped = UPSTREAM_MODEL_REMAP[bodyModel];
+    if (remapped) body = { ...body, model: remapped };
     return injectReasoningContent({ provider: this.provider, model, body });
   }
 
