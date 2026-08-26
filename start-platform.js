@@ -72,6 +72,13 @@ function detectPlatform() {
   const isCloudRun = process.env.K_SERVICE !== undefined ||
     process.env.K_CONFIGURATION !== undefined;
 
+  // Replit detection (https://replit.com) — interactive PaaS that injects its
+  // own PORT at runtime and proxies a public URL to it.
+  const isReplit = process.env.REPL_ID !== undefined ||
+    process.env.REPLIT !== undefined ||
+    process.env.REPLIT_DB_URL !== undefined ||
+    process.env.REPL_OWNER !== undefined;
+
   // Get available RAM
   const totalRAM = os.totalmem();
   const freeRAM = os.freemem();
@@ -91,6 +98,7 @@ function detectPlatform() {
     isRender,
     isNetlify,
     isCloudRun,
+    isReplit,
     isLowRAM,
     totalRAM,
     freeRAM,
@@ -162,7 +170,7 @@ function getMemoryConfig(platformInfo, forceLowMemory = false) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function getPlatformConfig(platformInfo) {
-  const { isTermux, isWSL, isDocker, isRailway, platform } = platformInfo;
+  const { isTermux, isWSL, isDocker, isRailway, isReplit, isRender, isNetlify, isCloudRun, platform } = platformInfo;
   
   const config = {
     // Default environment variables
@@ -297,7 +305,24 @@ function getPlatformConfig(platformInfo) {
     console.log('   - Using sql.js (ephemeral disk)');
     console.log('   - Auto-scale 0 → N');
   }
-  
+
+  // Replit-specific configuration (https://replit.com) — interactive PaaS
+  if (isReplit) {
+    // Replit injects its own PORT at runtime — never hardcode it (a fixed
+    // 3000 mismatches Replit's router, which then serves its fallback page).
+    config.env.HOSTNAME = '0.0.0.0';
+    // Replit's disk is reset on every run — use sql.js (no native build).
+    config.env.USE_SQLJS = '1';
+    config.env.DATA_DIR = process.env.DATA_DIR || '/tmp/.9router';
+    // Cap memory: free Replit cycles are tiny; keep the server lean.
+    config.env.NODE_OPTIONS = config.env.NODE_OPTIONS || '--max-old-space-size=384';
+    config.env.NEXT_WORKER_COUNT = '1';
+
+    console.log('🟧 Replit detected - configuring for interactive PaaS...');
+    console.log('   - Using injected PORT (do not hardcode)');
+    console.log('   - Using sql.js (ephemeral disk)');
+  }
+
   // Windows-specific configuration
   if (platform === 'win32') {
     config.spawnOptions.windowsHide = true;

@@ -1,11 +1,11 @@
-run = "node custom-server.js"
+run = "npm run build:low-mem && npm run start:replit"
+
 entrypoint = "custom-server.js"
 
 [nix]
 channel = "stable-24_05"
 
 [env]
-PORT = "3000"
 HOSTNAME = "0.0.0.0"
 NODE_ENV = "production"
 NEXT_TELEMETRY_DISABLED = "1"
@@ -18,4 +18,5 @@ NEXT_WORKER_COUNT = "1"
 pattern = "**/*.js"
 
 [deployment]
-run = ["sh", "-c", "npm install && npm run build:low-mem && node custom-server.js"]
+run = ["sh", "-c", "npm install && npm run build:low-mem && npm run start:replit"]
+build = ["sh", "-c", "npm install"]

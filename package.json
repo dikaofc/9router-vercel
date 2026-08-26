@@ -18,6 +18,7 @@
     "start:render": "node start-platform.js",
     "start:netlify": "node start-platform.js",
     "start:cloudrun": "node start-platform.js",
+    "start:replit": "node start-platform.js",
     "start:platform": "node start-platform.js",
     "start:low-memory": "node start-platform.js --low-memory",
     "dev:bun": "bun --bun next dev --webpack --port 20127",
