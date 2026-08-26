@@ -461,6 +461,14 @@ export async function buildModelsList(kindFilter, options = {}) {
         })
         .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "");
 
+      // Inject models the upstream lists but doesn't expose in /models (e.g. ox-alpha-free)
+      if (providerId === "opencode") {
+        for (const extra of ["ox-alpha-free"]) {
+          if (!modelIds.includes(extra) && !customModelIds.includes(extra) && !aliasModelIds.includes(extra)) {
+            modelIds.push(extra);
+          }
+        }
+      }
       const mergedModelIds = Array.from(new Set([...modelIds, ...customModelIds, ...aliasModelIds]));
 
       for (const modelId of mergedModelIds) {
