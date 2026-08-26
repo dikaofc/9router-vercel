@@ -326,17 +326,6 @@ export async function buildModelsList(kindFilter, options = {}) {
       }
     }
 
-    // Inject models not in the upstream catalog but confirmed available (e.g. ox-alpha-free)
-    for (const [alias, extraIds] of Object.entries({ oc: ["ox-alpha-free"] })) {
-      const providerId = aliasToProviderId[alias] || alias;
-      if (!providerMatchesKinds(providerId, kindFilter)) continue;
-      const existingIds = new Set(models.filter(m => m.id?.startsWith(`${alias}/`)).map(m => m.id.slice(alias.length + 1)));
-      for (const modelId of extraIds) {
-        if (existingIds.has(modelId) || isDisabled(alias, modelId)) continue;
-        models.push({ id: `${alias}/${modelId}`, object: "model", owned_by: alias });
-      }
-    }
-
     for (const customModel of customModels) {
       if (!customModel?.id || (customModel.type && customModel.type !== "llm")) continue;
       // Custom models without active connection are LLM-only by current schema
@@ -472,14 +461,6 @@ export async function buildModelsList(kindFilter, options = {}) {
         })
         .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "");
 
-      // Inject models the upstream lists but doesn't expose in /models (e.g. ox-alpha-free)
-      if (providerId === "opencode") {
-        for (const extra of ["ox-alpha-free"]) {
-          if (!modelIds.includes(extra) && !customModelIds.includes(extra) && !aliasModelIds.includes(extra)) {
-            modelIds.push(extra);
-          }
-        }
-      }
       const mergedModelIds = Array.from(new Set([...modelIds, ...customModelIds, ...aliasModelIds]));
 
       for (const modelId of mergedModelIds) {
@@ -548,6 +529,18 @@ export async function buildModelsList(kindFilter, options = {}) {
           owned_by: outputAlias,
         });
       }
+    }
+  }
+
+  // Inject models not in the upstream catalog but confirmed available.
+  // These are added after the main loop so they appear regardless of whether
+  // the provider has a connection or uses static PROVIDER_MODELS.
+  const EXTRA_MODELS = { oc: ["ox-alpha-free"] };
+  for (const [alias, extraIds] of Object.entries(EXTRA_MODELS)) {
+    const existingIds = new Set(models.filter(m => m.id?.startsWith(`${alias}/`)).map(m => m.id.slice(alias.length + 1)));
+    for (const modelId of extraIds) {
+      if (existingIds.has(modelId) || isDisabled(alias, modelId)) continue;
+      models.push({ id: `${alias}/${modelId}`, object: "model", owned_by: alias });
     }
   }
 
