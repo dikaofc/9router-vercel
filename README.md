@@ -65,19 +65,26 @@ npm install -g 9router
 
 ## 🌐 Deploy ke Cloud (Gratis!)
 
+### 🆓 GRATIS, NO CC (recommended)
+
 | Platform | Gratis? | Sleep? | Link |
 |----------|---------|--------|------|
-| ▲ Vercel | ✅ 100GB/bulan | ❌ Serverless | [VERCEL.md](./VERCEL.md) |
-| 🚂 Railway | ✅ $5 credit | ❌ Persistent | [RAILWAY.md](./RAILWAY.md) |
-| 🔷 Netlify | ✅ 100GB/bulan | ❌ Serverless | [NETLIFY.md](./NETLIFY.md) |
-| 🌐 Render | ✅ 750 jam/bulan | ⚠️ 15min idle | [RENDER.md](./RENDER.md) |
-| 🐳 Cloud Run | ✅ 2M request/bulan | ❌ Auto-scale | [CLOUDRUN.md](./CLOUDRUN.md) |
-| 🎮 Replit | ✅ Builder plan | ⚠️ Idle sleep | [REPLIT.md](./REPLIT.md) |
-| 🎭 Glitch | ✅ Selamanya | ⚠️ 5min idle | [GLITCH.md](./GLITCH.md) |
-| ⚡ Koyeb | ✅ Nano gratis | ❌ Gak sleep | [KOYEB.md](./KOYEB.md) |
-| 🚀 Zeabur | ✅ $5 credit | ❌ Gak sleep | [ZEABUR.md](./ZEABUR.md) |
+| 🎭 **Glitch** | ✅ Selamanya | ⚠️ 5min idle | [GLITCH.md](./GLITCH.md) |
+| 🎮 **Replit** | ✅ Builder | ⚠️ Idle sleep | [REPLIT.md](./REPLIT.md) |
+| ⚡ **Koyeb** | ✅ Nano gratis | ❌ Gak sleep | [KOYEB.md](./KOYEB.md) |
+| 🚀 **Zeabur** | ✅ $5 credit | ❌ Gak sleep | [ZEABUR.md](./ZEABUR.md) |
+| ▲ **Vercel** | ✅ 100GB/bulan | ❌ Serverless | [VERCEL.md](./VERCEL.md) |
+| 🔷 **Netlify** | ✅ 100GB/bulan | ❌ Serverless | [NETLIFY.md](./NETLIFY.md) |
 
-**Rekomendasi:** Railway/Koyeb/Zeabur (persistent, gak sleep) atau Vercel (serverless, cepat).
+### 💳 BUTUH CC (trial/free tier)
+
+| Platform | Gratis? | Sleep? | Link |
+|----------|---------|--------|------|
+| 🚂 Railway | ✅ $5 credit | ❌ Persistent | [RAILWAY.md](./RAILWAY.md) |
+| 🌐 Render | ✅ 750 jam | ⚠️ 15min idle | [RENDER.md](./RENDER.md) |
+| 🐳 Cloud Run | ✅ 2M req | ❌ Auto-scale | [CLOUDRUN.md](./CLOUDRUN.md) |
+
+**Rekomendasi:** Koyeb/Zeabur (no CC, gak sleep) atau Glitch (paling gampang).
 
 ---
 

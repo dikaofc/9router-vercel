@@ -1,6 +1,8 @@
 # 🌐 Deploy 9Router ke Render
 
 > Node.js native, free tier 750 jam/bulan.
+>
+> ⚠️ **BUTUH KARTU KREDIT** untuk bikin service.
 
 ## Quick Start
 
