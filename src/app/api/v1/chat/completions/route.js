@@ -48,20 +48,5 @@ export async function POST(request) {
     initialized = true;
   }
 
-  // F3 defense-in-depth: require API key on Vercel. Zero imports, pure env check.
-  // This MUST be in the route handler file (not shared modules) because Vercel
-  // bundles each route as a separate serverless function.
-  const _isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
-  if (_isVercel) {
-    const _auth = request.headers.get("Authorization");
-    const _key = _auth?.startsWith("Bearer ") ? _auth.slice(7) : request.headers.get("x-api-key");
-    if (!_key) {
-      return new Response(
-        JSON.stringify({ error: "API key required. Set Authorization: Bearer <your-key>" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-  }
-
   return await handleChat(request);
 }

@@ -77,12 +77,7 @@ export async function handleChat(request, clientRawRequest = null) {
 
   // Enforce API key if enabled in settings
   const settings = await getSettings();
-  // F3 fix: on Vercel, ALWAYS require API key regardless of DB setting.
-  // The DB setting gets overwritten by KV re-sync on every request, so we
-  // force it here as the single source of truth for Vercel deployments.
-  const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
-  const mustAuth = isVercel || settings.requireApiKey;
-  if (mustAuth) {
+  if (settings.requireApiKey) {
     if (!apiKey) {
       log.warn("AUTH", "Missing API key (requireApiKey=true)");
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
