@@ -52,22 +52,21 @@ export async function POST(request) {
   }
 
   // F3 fix: require API key on Vercel to prevent open relay abuse.
-  // The middleware guard may not enforce this consistently due to KV re-sync
-  // overwriting the DB setting, so we check directly in the handler.
+  // Check directly in handler as defense-in-depth (middleware may not enforce consistently).
   if (IS_VERCEL) {
     const authHeader = request.headers.get("Authorization");
     const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : request.headers.get("x-api-key");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "API key required" }), {
+      return new Response(JSON.stringify({ error: "API key required for remote access" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json", "X-F3-Fix": "v2" }
       });
     }
     // Validate against DB + env-var keys
     const valid = await validateApiKey(apiKey).catch(() => false);
     if (!valid) {
       const envSecret = process.env.API_KEY_SECRET;
-      if (envSecret && apiKey === envSecret) { /* valid */ }
+      if (envSecret && apiKey === envSecret) { /* valid env key */ }
       else {
         const keysEnv = process.env.API_KEYS;
         const envKeys = keysEnv ? String(keysEnv).split(/[\s,]+/).map(k => k.trim()).filter(Boolean) : [];
