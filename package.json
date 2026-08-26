@@ -13,6 +13,7 @@
     "start:termux": "bash start-termux.sh",
     "start:windows": "start-windows.bat",
     "start:vps": "bash start-vps.sh",
+    "start:railway": "node start-platform.js",
     "start:platform": "node start-platform.js",
     "start:low-memory": "node start-platform.js --low-memory",
     "dev:bun": "bun --bun next dev --webpack --port 20127",

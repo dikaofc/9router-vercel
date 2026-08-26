@@ -534,7 +534,7 @@ a third party under a provider named "Self-hosted".
 | 📝 **Request Logging**                                                            | Debug mode with full request/response logs                                               | Troubleshoot issues easily                        |
 | 💾 **Cloud Sync**                                                                 | Sync config across devices                                                               | Same setup everywhere                             |
 | 📊 **Usage Analytics**                                                            | Track tokens, cost, trends over time                                                     | Optimize spending                                 |
-| 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers, Vercel                                       | Flexible deployment options                       |
+| 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers, Vercel, Railway                               | Flexible deployment options                       |
 
 Set `X-9Router-Token-Saver: off` to bypass all token savers for one chat request.
 
@@ -705,6 +705,7 @@ On serverless (Vercel) and fresh installs, 9Router ships a managed **`free-first
 - 🚀 **Cloudflare Workers** - Global edge network
 - ▲ **Vercel** - Serverless; recommend the **Hobby** plan (`maxDuration` 300s, no Pro needed). State persists via Upstash (primary) → Supabase → KV → in-memory; writes flush before the lambda freezes so toggles/keys/combos survive cold starts. The zero-key `free-first` combo works out-of-the-box — no API key required.
   - Required env (Vercel dashboard, never committed): `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or Vercel KV), `JWT_SECRET`, and `INITIAL_PASSWORD` (override the `123456` default). `API_KEY_SECRET`/`API_KEYS` optional for CLI auth.
+- 🚂 **Railway** - Persistent process with SQLite persistence; push to deploy. See [RAILWAY.md](RAILWAY.md).
 - 📱 **Android Termux** - Run on Android phones/tablets with low memory optimization
 - 🪟 **Windows** - Native Windows support with batch scripts
 

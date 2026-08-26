@@ -48,10 +48,16 @@ function detectPlatform() {
      fs.readFileSync('/proc/1/cgroup', 'utf8').includes('docker'));
   
   // CI/CD detection
-  const isCI = process.env.CI === 'true' || 
+  const isCI = process.env.CI === 'true' ||
     process.env.GITHUB_ACTIONS === 'true' ||
     process.env.GITLAB_CI === 'true';
-  
+
+  // Railway detection (https://railway.app) — long-lived PaaS that injects a
+  // dynamic PORT and has ephemeral disk (persist to sql.js, not a SQLite file).
+  const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined ||
+    process.env.RAILWAY_SERVICE_ID !== undefined ||
+    process.env.RAILWAY_PROJECT_ID !== undefined;
+
   // Get available RAM
   const totalRAM = os.totalmem();
   const freeRAM = os.freemem();
@@ -67,6 +73,7 @@ function detectPlatform() {
     isWSL,
     isDocker,
     isCI,
+    isRailway,
     isLowRAM,
     totalRAM,
     freeRAM,
@@ -210,8 +217,24 @@ function getPlatformConfig(platformInfo) {
     config.env.PORT = '20128';
     config.env.HOSTNAME = '0.0.0.0';
     config.env.DATA_DIR = '/app/data';
-    
+
     console.log('🐳 Docker detected - configuring for container...');
+  }
+
+  // Railway-specific configuration (long-lived PaaS, ephemeral disk)
+  if (isRailway) {
+    // Railway injects PORT at runtime — never hardcode it.
+    config.env.HOSTNAME = '0.0.0.0';
+    // Ephemeral filesystem on deploy: use sql.js (no native build, in-memory DB
+    // that serializes to the writable /tmp layer instead of a persisted SQLite file).
+    config.env.USE_SQLJS = '1';
+    // Railway provides its own volume mount if the user wires one; otherwise
+    // fall back to /tmp so writes don't crash on the read-only image layer.
+    config.env.DATA_DIR = process.env.DATA_DIR || '/tmp/.9router';
+
+    console.log('🚄 Railway detected - configuring for managed PaaS...');
+    console.log('   - Using injected PORT (do not hardcode)');
+    console.log('   - Using sql.js (ephemeral disk)');
   }
   
   // Windows-specific configuration
