@@ -1,0 +1,19 @@
+run = "node custom-server.js"
+entrypoint = "custom-server.js"
+
+[nix]
+channel = "stable-24_05"
+
+[env]
+PORT = "3000"
+HOSTNAME = "0.0.0.0"
+NODE_ENV = "production"
+NEXT_TELEMETRY_DISABLED = "1"
+DATA_DIR = "/tmp/.9router"
+USE_SQLJS = "1"
+
+[languages.javascript]
+pattern = "**/*.js"
+
+[deployment]
+run = ["sh", "-c", "npm install && npm run build && node custom-server.js"]

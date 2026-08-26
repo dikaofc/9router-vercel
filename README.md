@@ -534,7 +534,7 @@ a third party under a provider named "Self-hosted".
 | 📝 **Request Logging**                                                            | Debug mode with full request/response logs                                               | Troubleshoot issues easily                        |
 | 💾 **Cloud Sync**                                                                 | Sync config across devices                                                               | Same setup everywhere                             |
 | 📊 **Usage Analytics**                                                            | Track tokens, cost, trends over time                                                     | Optimize spending                                 |
-| 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers, Vercel, Railway, Render, Netlify, Cloud Run    | Flexible deployment options                       |
+| 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers, Vercel, Railway, Render, Netlify, Cloud Run, Replit | Flexible deployment options                  |
 
 Set `X-9Router-Token-Saver: off` to bypass all token savers for one chat request.
 
@@ -709,6 +709,7 @@ On serverless (Vercel) and fresh installs, 9Router ships a managed **`free-first
 - 🌐 **Render** - Node.js native, free tier 750h/bulan, push to deploy. See [RENDER.md](RENDER.md).
 - 🔷 **Netlify** - Serverless edge functions, mirip Vercel. See [NETLIFY.md](NETLIFY.md).
 - 🐳 **Google Cloud Run** - Docker-based, auto-scale, free tier besar. See [CLOUDRUN.md](CLOUDRUN.md).
+- 🎮 **Replit** - Browser-based, zero setup, push to deploy. See [REPLIT.md](REPLIT.md).
 - 📱 **Android Termux** - Run on Android phones/tablets with low memory optimization
 - 🪟 **Windows** - Native Windows support with batch scripts
 
