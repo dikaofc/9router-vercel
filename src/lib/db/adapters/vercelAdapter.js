@@ -149,6 +149,15 @@ export async function seedFromEnv(adapter) {
         "oc/x-preview-f-free",
       ],
     },
+    {
+      id: "vercel-seed-oc-free-pi-agent",
+      name: "oc-free-pi-agent",
+      kind: "fallback",
+      models: [
+        "oc/hy3-free",                       // reasoning model first — best quality
+        "oc/big-pickle",                     // fast fallback if hy3 fails/rate-limits
+      ],
+    },
   ];
   for (const c of managedCombos) {
     try {
