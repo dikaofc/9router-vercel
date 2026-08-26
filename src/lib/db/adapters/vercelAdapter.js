@@ -203,6 +203,24 @@ export async function seedFromEnv(adapter) {
     // Logging removed to avoid leaking API key count in production logs
   }
 
+  // ── Force security defaults on EVERY cold start (not just fresh installs) ──
+  // F3 fix: requireApiKey must ALWAYS be true on Vercel to prevent open relay.
+  // Existing deployments may have requireApiKey: false from before the fix.
+  try {
+    const rows = adapter.all("SELECT data FROM settings WHERE id = 1");
+    if (rows?.[0]?.data) {
+      const existing = JSON.parse(rows[0].data);
+      let changed = false;
+      if (existing.requireApiKey !== true) { existing.requireApiKey = true; changed = true; }
+      if (changed) {
+        adapter.run(`UPDATE settings SET data = ? WHERE id = 1`, [JSON.stringify(existing)]);
+        console.log(`[DB/Vercel] Force-applied security defaults (requireApiKey=true)`);
+      }
+    }
+  } catch (e) {
+    console.warn(`[DB/Vercel] Security default enforcement skipped: ${e.message}`);
+  }
+
   const rows = adapter.all("SELECT COUNT(*) as cnt FROM settings");
   const count = rows?.[0]?.cnt || 0;
   if (count > 0) return;
