@@ -19,27 +19,31 @@ function getHmacSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     if (IS_VERCEL) {
-      // Fail closed on Vercel — no deterministic fallback
-      throw new Error(
-        "JWT_SECRET env var is required on Vercel. " +
-        "Set it in Vercel Dashboard → Settings → Environment Variables. " +
-        "Generate one with: openssl rand -hex 32"
-      );
+      // On Vercel without JWT_SECRET: generate a random per-cold-start secret.
+      // Sessions won't survive cold starts, but the app works. Once the user
+      // sets JWT_SECRET, sessions become stable. This replaces the old
+      // deterministic fallback (sha256 of project name) which was guessable.
+      if (!_perColdStartSecret) {
+        _perColdStartSecret = crypto.randomBytes(32).toString("hex");
+        console.warn("[Auth] No JWT_SECRET set on Vercel — using random per-cold-start secret. " +
+          "Sessions will not survive cold starts. Set JWT_SECRET in Vercel env vars.");
+      }
+      return _perColdStartSecret;
     }
     // Local dev: generate a random secret (stored in file by loadJwtSecret)
     return null;
   }
   return secret;
 }
+let _perColdStartSecret = null;
 
 function loadJwtSecret() {
   const envSecret = process.env.JWT_SECRET;
   if (envSecret) return envSecret;
 
   if (IS_VERCEL) {
-    // Fail closed — getHmacSecret() will throw
-    getHmacSecret();
-    return "unreachable";
+    // Use per-cold-start random secret (getHmacSecret handles this)
+    return getHmacSecret();
   }
 
   // Local dev: use file-based random secret
