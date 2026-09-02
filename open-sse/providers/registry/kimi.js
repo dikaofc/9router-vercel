@@ -21,7 +21,6 @@ export default {
     },
   },
   category: "oauth",
-  defaultEnabled: false,
   authModes: ["oauth", "apikey"],
   hasOAuth: true,
   transport: {

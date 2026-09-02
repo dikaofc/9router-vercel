@@ -1,6 +1,3 @@
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-export const maxDuration = 60;
 import { PROVIDER_MODELS } from "@/shared/constants/models";
 
 /**

@@ -89,18 +89,12 @@ http.createServer = (...args) => {
       socket.destroy();
       return true;
     }
-    // Replay gets its own header copy with h2c-specific headers stripped, so the
-    // HTTP/1.1 handler never sees them and a future async serve() can't leak them.
-    const replayHeaders = { ...req.headers };
-    delete replayHeaders.upgrade;
-    delete replayHeaders["http2-settings"];
-    replayHeaders.connection = "close";
     const chunks = [head];
     let received = head.length;
     const serve = () => {
       // Replay the upgraded request through the existing HTTP/1.1 handler.
       const replay = new http.IncomingMessage(socket);
-      Object.assign(replay, { method: req.method, url: req.url, headers: replayHeaders, complete: true });
+      Object.assign(replay, { method: req.method, url: req.url, headers: req.headers, complete: true });
       if (received) replay.push(Buffer.concat(chunks, received).subarray(0, contentLength));
       replay.push(null);
       const res = new http.ServerResponse(replay);
@@ -123,6 +117,9 @@ http.createServer = (...args) => {
       });
       socket.resume();
     }
+    delete req.headers.upgrade;
+    delete req.headers["http2-settings"];
+    req.headers.connection = "close";
     return true;
   };
   return server;

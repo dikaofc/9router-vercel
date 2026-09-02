@@ -14,84 +14,24 @@ const SETTINGS_RESPONSE_HEADERS = {
 // Secrets must never be mass-assigned from request body (CWE-915)
 const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted"];
 
-// Storage/cloud keys must never be returned to the dashboard client in plaintext.
-// They are written to process.env at runtime and stored in the DB — redact on read.
-const SECRET_PREFIXES = ["DIKA_", "NEXT_PUBLIC_DIKA_", "MONGODB_", "KV_REST_", "UPSTASH_REDIS_REST_"];
-// Secrets stored server-side but that must never be returned to the browser.
-const NEVER_RETURN_KEYS = ["smartIpVercelToken"];
-
-function redactSecretKey(key) {
-  for (const prefix of SECRET_PREFIXES) {
-    if (key.startsWith(prefix)) return `*`.repeat(8);
-  }
-  if (NEVER_RETURN_KEYS.includes(key)) return `*`.repeat(8);
-  return false;
-}
-
-function redactSecrets(obj) {
-  const out = {};
-  for (const [key, value] of Object.entries(obj || {})) {
-    out[key] = redactSecretKey(key) || value;
-  }
-  return out;
-}
-
-async function detectPersistence() {
-  try {
-    const { getAdapter } = await import("@/lib/db/driver.js");
-    const adapter = await getAdapter();
-    const hasSupabaseEnv = !!(
-      (process.env.NEXT_PUBLIC_DIKA_SUPABASE_URL ||
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        process.env.SUPABASE_URL) &&
-      (process.env.DIKA_SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.DIKA_SUPABASE_SECRET_KEY ||
-        process.env.DIKA_SUPABASE_ANON_KEY ||
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        process.env.SUPABASE_ANON_KEY)
-    );
-    let supabaseWriteOk = null;
-    let supabaseError = null;
-    let keyKind = null;
-    if (adapter.driver === "vercel-supabase") {
-      supabaseWriteOk = !adapter._failed && !adapter._readonly;
-      supabaseError = adapter._lastError || null;
-      keyKind = adapter._keyKind || null;
-    }
-    return { driver: adapter.driver, supabaseConfigured: hasSupabaseEnv, supabaseWriteOk, supabaseError, keyKind };
-  } catch {
-    return { driver: "uninitialized", supabaseConfigured: false };
-  }
-}
-
 export async function GET() {
   try {
     const settings = await getSettings();
-    const { password, oidcClientSecret, ...rest } = settings;
-    const safeSettings = redactSecrets(rest);
+    const { password, oidcClientSecret, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
-
+    
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
-
-    // On Vercel, password lives in INITIAL_PASSWORD env var, not in DB
-    const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
-    const passwordExists = !!password || (IS_VERCEL && !!process.env.INITIAL_PASSWORD);
-
-    const persistence = await detectPersistence();
-
-    return NextResponse.json({
-      ...safeSettings,
+    
+    return NextResponse.json({ 
+      ...safeSettings, 
       enableRequestLogs,
       enableTranslator,
-      hasPassword: passwordExists,
-      persistence
+      hasPassword: !!password
     }, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
-    // F7 fix: log only message, not full error object (avoids leaking PII/stack)
-    console.log("Error getting settings:", error?.message || error);
-    return NextResponse.json({ error: "Failed to get settings" }, { status: 500 });
+    console.log("Error getting settings:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
@@ -138,27 +78,6 @@ export async function PATCH(request) {
 
     const settings = await updateSettings(body);
 
-    // If Supabase connection keys were updated, apply them to the running
-    // instance's env and re-init the DB adapter so persistence takes effect
-    // without a full restart. (Vercel still needs these as project env vars
-    // for cold-start survival — see Supabase settings tab.)
-    const supabaseKeys = Object.keys(body).filter(
-      (k) => k.startsWith("DIKA_SUPABASE") || k.startsWith("NEXT_PUBLIC_DIKA_SUPABASE")
-    );
-    if (supabaseKeys.length) {
-      for (const k of supabaseKeys) {
-        if (body[k]) process.env[k] = body[k];
-      }
-      try {
-        const { resetAdapter, getAdapterSync } = await import("@/lib/db/driver.js");
-        let current = null;
-        try { current = getAdapterSync().driver; } catch {}
-        if (current !== "vercel-supabase") resetAdapter();
-      } catch (e) {
-        console.warn(`[settings] Supabase adapter re-init skipped: ${e.message}`);
-      }
-    }
-
     // Apply outbound proxy settings immediately (no restart required)
     if (
       Object.prototype.hasOwnProperty.call(body, "outboundProxyEnabled") ||
@@ -189,13 +108,11 @@ export async function PATCH(request) {
         .catch((error) => console.warn("[AutoPing] settings update failed:", error.message));
     }
 
-    const { password, oidcClientSecret, ...rest } = settings;
-    const safeSettings = redactSecrets(rest);
+    const { password, oidcClientSecret, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });
   } catch (error) {
-    // F7 fix: log only message, not full error object
-    console.log("Error updating settings:", error?.message || error);
-    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
+    console.log("Error updating settings:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

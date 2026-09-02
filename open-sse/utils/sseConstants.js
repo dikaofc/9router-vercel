@@ -14,14 +14,10 @@ export const SSE_HEADERS_NO_BUFFER = {
   "X-Accel-Buffering": "no"
 };
 
-// Variant for client-facing SSE responses (adds permissive CORS).
-// X-Accel-Buffering: no tells Vercel's edge/proxy layer to stream chunks
-// through immediately instead of buffering — without it a long agent turn can
-// appear frozen, then dump all content at once (or the connection is cut).
+// Variant for client-facing SSE responses (adds permissive CORS)
 export const SSE_HEADERS_CORS = {
   "Content-Type": "text/event-stream",
-  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-  "X-Accel-Buffering": "no",
+  "Cache-Control": "no-cache",
   "Connection": "keep-alive",
   "Access-Control-Allow-Origin": "*"
 };

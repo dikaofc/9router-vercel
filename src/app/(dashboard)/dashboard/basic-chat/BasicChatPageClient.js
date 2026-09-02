@@ -93,22 +93,6 @@ function readAssistantText(chunk) {
   return pieces[0] || "";
 }
 
-// Providers stream reasoning/thinking in fields other than content. Capture them
-// so they are visible and the stream does not look like it "ended with no reason".
-function readAssistantThinking(chunk) {
-  if (!chunk || typeof chunk !== "object") return "";
-  const choice = chunk.choices?.[0];
-  const delta = choice?.delta || {};
-  const pieces = [
-    delta.thinking,
-    delta.reasoning_content,
-    delta.reasoning,
-    chunk.thinking,
-    chunk.reasoning,
-  ].map(textValue).filter(Boolean);
-  return pieces[0] || "";
-}
-
 async function fileToDataUrl(file) {
   return await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -213,7 +197,6 @@ export default function BasicChatPageClient() {
   const [isSending, setIsSending] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState("");
   const [streamingText, setStreamingText] = useState("");
-  const [streamingThinking, setStreamingThinking] = useState("");
   const [isHydrated, setIsHydrated] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -642,7 +625,6 @@ export default function BasicChatPageClient() {
     setIsSending(true);
     setStreamingMessageId(assistantMessageId);
     setStreamingText("");
-    setStreamingThinking("");
     abortRef.current?.abort();
     abortRef.current = new AbortController();
 
@@ -688,7 +670,6 @@ export default function BasicChatPageClient() {
       const decoder = new TextDecoder();
       let buffer = "";
       let assistantText = "";
-      let assistantThinking = "";
 
       while (true) {
         const { value, done } = await reader.read();
@@ -708,20 +689,13 @@ export default function BasicChatPageClient() {
           try {
             const chunk = JSON.parse(payload);
             const text = readAssistantText(chunk);
-            const thinking = readAssistantThinking(chunk);
-            if (!text && !thinking) continue;
+            if (!text) continue;
 
-            if (text) {
-              assistantText += text;
-              setStreamingText(assistantText);
-            }
-            if (thinking) {
-              assistantThinking += thinking;
-              setStreamingThinking(assistantThinking);
-            }
+            assistantText += text;
+            setStreamingText(assistantText);
             updateSession(sessionId, (currentSession) => ({
               ...currentSession,
-              messages: currentSession.messages.map((message) => (message.id === assistantMessageId ? { ...message, content: assistantText, thinking: assistantThinking, status: "streaming" } : message)),
+              messages: currentSession.messages.map((message) => (message.id === assistantMessageId ? { ...message, content: assistantText, status: "streaming" } : message)),
               updatedAt: new Date().toISOString(),
             }));
           } catch {
@@ -732,13 +706,7 @@ export default function BasicChatPageClient() {
 
       updateSession(sessionId, (currentSession) => ({
         ...currentSession,
-        messages: currentSession.messages.map((message) => (message.id === assistantMessageId ? {
-          ...message,
-          // Surface empty streams instead of ending silently with no content.
-          content: assistantText || message.content || "\u200b",
-          thinking: assistantThinking || message.thinking,
-          status: "done",
-        } : message)),
+        messages: currentSession.messages.map((message) => (message.id === assistantMessageId ? { ...message, content: assistantText || message.content, status: "done" } : message)),
         updatedAt: new Date().toISOString(),
       }));
       finalizeSessionTitle(sessionId, userText);
@@ -756,7 +724,6 @@ export default function BasicChatPageClient() {
       setIsSending(false);
       setStreamingMessageId("");
       setStreamingText("");
-      setStreamingThinking("");
       abortRef.current = null;
     }
   };
@@ -931,13 +898,8 @@ export default function BasicChatPageClient() {
                       ) : null}
 
                       <div className="whitespace-pre-wrap break-words text-[15px] leading-7">
-                        {message.thinking ? (
-                        <div className="mb-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-white/50 text-[13px] leading-6 whitespace-pre-wrap break-words">
-                          {message.thinking}
-                        </div>
-                      ) : null}
-                      {content}
-                        {isAssistant && isStreaming && !streamingText && !streamingThinking ? <span className="inline-block animate-pulse">▋</span> : null}
+                        {content}
+                        {isAssistant && isStreaming && !streamingText ? <span className="inline-block animate-pulse">▋</span> : null}
                       </div>
                     </div>
                   </div>

@@ -15,7 +15,6 @@ export default {
     deprecationNotice: "RISK_NOTICE",
   },
   category: "oauth",
-  defaultEnabled: false,
   transport: {
     baseUrl: "https://api.githubcopilot.com/chat/completions",
     responsesUrl: "https://api.githubcopilot.com/responses",

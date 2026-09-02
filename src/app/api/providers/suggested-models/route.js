@@ -18,13 +18,7 @@ export async function GET(request) {
   }
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { "User-Agent": "9router/0.5.55" },
-    });
-    clearTimeout(timeoutId);
+    const res = await fetch(url);
     if (!res.ok) {
       return NextResponse.json({ data: [] });
     }

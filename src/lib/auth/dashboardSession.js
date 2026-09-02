@@ -3,71 +3,20 @@ import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { DATA_DIR } from "@/lib/dataDir"
+import { DATA_DIR } from "@/lib/dataDir";
 import { getSettings } from "@/lib/localDb";
 
 const DEFAULT_PASSWORD = "123456";
-const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
-
-// Session expiry: 24 hours in milliseconds
-const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-// Get HMAC secret — CRITICAL: must be set via JWT_SECRET env var on Vercel.
-// The old deterministic fallback (sha256 of project name) was guessable
-// because VERCEL_PROJECT_NAME is public in the deploy URL.
-function getHmacSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    if (IS_VERCEL) {
-      // On Vercel without JWT_SECRET: derive a DETERMINISTIC secret from
-      // VERCEL_PROJECT_ID so Edge middleware and serverless API routes share
-      // the same HMAC key. VERCEL_PROJECT_ID is a UUID not exposed in URLs
-      // (unlike VERCEL_PROJECT_NAME), so this is safe. Previous random-per-
-      // cold-start approach broke login because Edge and serverless are
-      // different processes with different random secrets.
-      if (!_perColdStartSecret) {
-        const projectId = process.env.VERCEL_PROJECT_ID || "";
-        if (projectId) {
-          _perColdStartSecret = crypto.createHash("sha256")
-            .update(`9router-hmac:${projectId}`)
-            .digest("hex");
-        } else {
-          // Fallback: random (won't survive cold starts)
-          _perColdStartSecret = crypto.randomBytes(32).toString("hex");
-          console.warn("[Auth] No JWT_SECRET or VERCEL_PROJECT_ID on Vercel — " +
-            "sessions will not survive cold starts. Set JWT_SECRET in Vercel env vars.");
-        }
-      }
-      return _perColdStartSecret;
-    }
-    // Local dev: generate a random secret (stored in file by loadJwtSecret)
-    return null;
-  }
-  return secret;
-}
-let _perColdStartSecret = null;
 
 function loadJwtSecret() {
-  const envSecret = process.env.JWT_SECRET;
-  if (envSecret) return envSecret;
-
-  if (IS_VERCEL) {
-    // Use per-cold-start random secret (getHmacSecret handles this)
-    return getHmacSecret();
-  }
-
-  // Local dev: use file-based random secret
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
   const file = path.join(DATA_DIR, "jwt-secret");
   try {
     return fs.readFileSync(file, "utf8").trim();
   } catch {}
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  } catch {}
+  fs.mkdirSync(DATA_DIR, { recursive: true });
   const generated = crypto.randomBytes(32).toString("hex");
-  try {
-    fs.writeFileSync(file, generated, { mode: 0o600 });
-  } catch {}
+  fs.writeFileSync(file, generated, { mode: 0o600 });
   return generated;
 }
 
@@ -81,13 +30,6 @@ export function shouldUseSecureCookie(request) {
 }
 
 export async function createDashboardAuthToken(claims = {}) {
-  // On Vercel: use simple HMAC cookie instead of JWT (stable across cold starts)
-  if (IS_VERCEL) {
-    const payload = JSON.stringify({ authenticated: true, ...claims, ts: Date.now() });
-    const sig = crypto.createHmac("sha256", getHmacSecret()).update(payload).digest("hex");
-    return Buffer.from(JSON.stringify({ p: payload, s: sig })).toString("base64");
-  }
-
   return new SignJWT({ authenticated: true, ...claims })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -97,23 +39,6 @@ export async function createDashboardAuthToken(claims = {}) {
 
 export async function verifyDashboardAuthToken(token) {
   if (!token) return false;
-
-  // On Vercel: verify simple HMAC cookie with expiry check
-  if (IS_VERCEL) {
-    try {
-      const decoded = JSON.parse(Buffer.from(token, "base64").toString());
-      const expectedSig = crypto.createHmac("sha256", getHmacSecret()).update(decoded.p).digest("hex");
-      if (decoded.s !== expectedSig) return false;
-      const payload = JSON.parse(decoded.p);
-      // F2 fix: validate session expiry — forged/leaked cookies expire after 24h
-      if (payload.authenticated !== true) return false;
-      if (payload.ts && (Date.now() - payload.ts) > SESSION_MAX_AGE_MS) return false;
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   try {
     await jwtVerify(token, SECRET);
     return true;
@@ -124,21 +49,6 @@ export async function verifyDashboardAuthToken(token) {
 
 export async function getDashboardAuthSession(token) {
   if (!token) return null;
-
-  if (IS_VERCEL) {
-    try {
-      const decoded = JSON.parse(Buffer.from(token, "base64").toString());
-      const expectedSig = crypto.createHmac("sha256", getHmacSecret()).update(decoded.p).digest("hex");
-      if (decoded.s !== expectedSig) return null;
-      const payload = JSON.parse(decoded.p);
-      // F2 fix: validate session expiry
-      if (payload.ts && (Date.now() - payload.ts) > SESSION_MAX_AGE_MS) return null;
-      return payload;
-    } catch {
-      return null;
-    }
-  }
-
   try {
     const { payload } = await jwtVerify(token, SECRET);
     return payload;
@@ -161,6 +71,7 @@ export function clearDashboardAuthCookie(cookieStore) {
   cookieStore.delete("auth_token");
 }
 
+// Verify the current dashboard password (re-auth for sensitive actions).
 export async function verifyDashboardPassword(password) {
   if (typeof password !== "string" || !password) return false;
   const settings = await getSettings();

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSettings } from "@/lib/localDb";
-export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {

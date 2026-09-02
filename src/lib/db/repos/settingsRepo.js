@@ -17,10 +17,6 @@ const DEFAULT_SETTINGS = {
   comboStrategy: "fallback",
   comboStickyRoundRobinLimit: 1,
   comboStrategies: {},
-  // Default account-selection across multiple credentials of the same provider.
-  // "round-robin" spreads load evenly across accounts (cuts per-account 429s on
-  // multi-device use); "fill-first" pins to the highest-priority account.
-  fallbackStrategy: "round-robin",
   capacityAdapter: {
     vision: { enabled: true, roundRobin: false, models: [] },
     pdf: { enabled: false, roundRobin: false, models: [] },
@@ -28,7 +24,7 @@ const DEFAULT_SETTINGS = {
     videoInput: { enabled: false, roundRobin: false, models: [] },
   },
   requireLogin: true,
-  requireApiKey: false,
+  requireApiKey: true,
   tunnelDashboardAccess: true,
   authMode: "password",
   ssoType: "oidc",
@@ -54,24 +50,18 @@ const DEFAULT_SETTINGS = {
   mitmRouterBaseUrl: DEFAULT_MITM_ROUTER_BASE,
   dnsToolEnabled: {},
   rtkEnabled: true,
-  headroomEnabled: true,
+  headroomEnabled: false,
   headroomUrl: DEFAULT_HEADROOM_URL,
-  headroomCompressUserMessages: true,
-  cavemanEnabled: true,
+  headroomCompressUserMessages: false,
+  headroomTimeoutMs: 3000,
+  cavemanEnabled: false,
   cavemanLevel: "full",
-  ponytailEnabled: true,
+  ponytailEnabled: false,
   ponytailLevel: "full",
-  contextSaverEnabled: true,
-  contextSaverLevel: "full",
-  fastCodeEnabled: true,
-  fastCodeLevel: "full",
-  pxpipeEnabled: true,
+  pxpipeEnabled: false,
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
-  smartIpTargetUrl: "",
-  smartIpRegions: ["iad1", "sfo1", "cdg1", "hnd1"],
-  smartIpVercelToken: "",
 };
 
 async function readRaw() {
@@ -101,28 +91,12 @@ export function mergeWithDefaults(raw) {
 
 export async function getSettings() {
   const raw = await readRaw();
-  const merged = mergeWithDefaults(raw);
-  // Honour REQUIRE_API_KEY env var (documented in .env.example but previously
-  // never applied). When set, it overrides the persisted value so operators can
-  // enforce (or relax) key auth via Vercel env without touching the dashboard.
-  if (process.env.REQUIRE_API_KEY !== undefined) {
-    merged.requireApiKey = String(process.env.REQUIRE_API_KEY).toLowerCase() === "true";
-  }
-  return merged;
+  return mergeWithDefaults(raw);
 }
 
 // Atomic read-merge-write inside transaction (prevents losing concurrent updates)
 export async function updateSettings(updates) {
   const db = await getAdapter();
-  // On Vercel/Supabase the shared blob changes server-side between our last
-  // sync and this write; a throttled pull would merge onto a stale base and
-  // clobber keys written by a sibling instance (e.g. rapid per-toggle PATCHes).
-  // Force a fresh pull so the merge and the upload win the race.
-  try {
-    if (typeof db._syncRemote === "function") await db._syncRemote(true);
-  } catch {
-    // Non-durable adapters (vercel-in-memory, plain sqlite) have no remote — nothing to sync.
-  }
   let next;
   db.transaction(function () {
     const row = db.get(`SELECT data FROM settings WHERE id = 1`);
@@ -133,11 +107,6 @@ export async function updateSettings(updates) {
       [stringifyJson(next)],
     );
   });
-  // Flush synchronously so the write lands in Upstash/Supabase BEFORE the
-  // lambda freezes — otherwise the debounced timer may never fire and the
-  // setting reverts on the next cold start (the "Token Saver off again" bug).
-  if (typeof db._flush === "function") { try { db._flush(); } catch {} }
-  else if (typeof db._persist === "function") { try { await db._persist(); } catch {} }
   return mergeWithDefaults(next);
 }
 

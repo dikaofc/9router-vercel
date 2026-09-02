@@ -67,7 +67,7 @@ export async function createNodeSqliteAdapter(filePath) {
       db.exec(`SAVEPOINT ${sp}`);
       try {
         const r = fn();
-        try { db.exec(`RELEASE ${sp}`); } catch {}
+        db.exec(`RELEASE ${sp}`);
         return r;
       } catch (e) {
         try { db.exec(`ROLLBACK TO ${sp}`); db.exec(`RELEASE ${sp}`); } catch {}

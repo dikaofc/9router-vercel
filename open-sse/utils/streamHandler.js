@@ -41,7 +41,8 @@ export function createStreamController({ onDisconnect, onError, log, provider, m
       if (disconnected) return;
       disconnected = true;
 
-      logStream("⚡", `DISCONNECT: ${reason}`);
+      // Debug-only: Responses API has no [DONE] sentinel, so codex/droid close the
+      // socket on every completed request. "📊 done" is the authoritative outcome line.
       dbg("CTRL", `${provider}/${model} | disconnect=${reason} | dur=${Date.now() - startTime}ms`);
 
       // Delay abort to allow cleanup
@@ -245,40 +246,8 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
     .pipeThrough(upstreamTap)
     .pipeThrough(transformStream);
 
-  // Keepalive: during long upstream silences (slow reasoning, agent loops) the
-  // transport must stay visibly alive — Vercel freezes idle functions and some
-  // clients drop quiet SSE. Comment lines are ignored by every SSE parser.
-  const keepaliveOut = new TransformStream();
-  const kWriter = keepaliveOut.writable.getWriter();
-  const ENCODER = new TextEncoder();
-  const KEEPALIVE_BYTES = ENCODER.encode(": keepalive\n\n");
-  let keepAliveTimer = null;
-  const armKeepAlive = () => {
-    clearTimeout(keepAliveTimer);
-    keepAliveTimer = setTimeout(() => {
-      kWriter.write(KEEPALIVE_BYTES).catch(() => {});
-      armKeepAlive();
-    }, 25_000);
-  };
-  (async () => {
-    const reader = transformedBody.getReader();
-    armKeepAlive();
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        await kWriter.write(value);
-      }
-      await kWriter.close();
-    } catch (err) {
-      await kWriter.abort(err).catch(() => {});
-    } finally {
-      clearTimeout(keepAliveTimer);
-    }
-  })();
-
   return createDisconnectAwareStream(
-    { readable: keepaliveOut.readable, writable: { getWriter: () => ({ abort: () => Promise.resolve() }) } },
+    { readable: transformedBody, writable: { getWriter: () => ({ abort: () => Promise.resolve() }) } },
     wrappedController,
     onAbortTerminal
   );

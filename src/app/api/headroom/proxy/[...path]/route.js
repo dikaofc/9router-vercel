@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSettings } from "@/lib/localDb";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
-import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +24,6 @@ async function getTargetBase() {
   const target = new URL(url);
   if (!["http:", "https:"].includes(target.protocol)) {
     throw new Error("Headroom URL must use http or https");
-  }
-  // F6 fix: validate target URL against SSRF guard
-  try { assertPublicUrl(url); } catch (e) {
-    throw new Error(`Blocked: headroom URL points to internal network (${e.message})`);
   }
   return target;
 }

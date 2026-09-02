@@ -8,14 +8,13 @@ import {
   WENYAN_LOCALES,
   CAVEMAN_LEVELS,
   PONYTAIL_LEVELS,
-  CONTEXT_SAVER_LEVELS,
-  FAST_CODE_LEVELS,
 } from "../endpoint/endpointConstants";
 
 export default function TokenSaverClient() {
   const [rtkEnabled, setRtkEnabledState] = useState(true);
-  const [headroomEnabled, setHeadroomEnabled] = useState(true);
+  const [headroomEnabled, setHeadroomEnabled] = useState(false);
   const [headroomUrl, setHeadroomUrl] = useState("http://localhost:8787");
+  const [headroomTimeoutMs, setHeadroomTimeoutMs] = useState(3000);
   const [headroomStatus, setHeadroomStatus] = useState({
     installed: false,
     running: false,
@@ -42,15 +41,11 @@ export default function TokenSaverClient() {
   const [kompress, setKompress] = useState(true);
   const [restartingProxy, setRestartingProxy] = useState(false);
   const logPollRef = useRef(null);
-  const [cavemanEnabled, setCavemanEnabled] = useState(true);
+  const [cavemanEnabled, setCavemanEnabled] = useState(false);
   const [cavemanLevel, setCavemanLevel] = useState("full");
-  const [ponytailEnabled, setPonytailEnabled] = useState(true);
+  const [ponytailEnabled, setPonytailEnabled] = useState(false);
   const [ponytailLevel, setPonytailLevel] = useState("full");
-  const [contextSaverEnabled, setContextSaverEnabled] = useState(true);
-  const [contextSaverLevel, setContextSaverLevel] = useState("full");
-  const [fastCodeEnabled, setFastCodeEnabled] = useState(true);
-  const [fastCodeLevel, setFastCodeLevel] = useState("full");
-  const [pxpipeEnabled, setPxpipeEnabled] = useState(true);
+  const [pxpipeEnabled, setPxpipeEnabled] = useState(false);
   const [pxpipeMinChars, setPxpipeMinChars] = useState(25000);
   const [pxpipeStatus, setPxpipeStatus] = useState({
     installed: false,
@@ -359,26 +354,6 @@ export default function TokenSaverClient() {
     patchSetting({ ponytailLevel: level });
   };
 
-  const handleContextSaverEnabled = (value) => {
-    setContextSaverEnabled(value);
-    patchSetting({ contextSaverEnabled: value });
-  };
-
-  const handleContextSaverLevel = (level) => {
-    setContextSaverLevel(level);
-    patchSetting({ contextSaverLevel: level });
-  };
-
-  const handleFastCodeEnabled = (value) => {
-    setFastCodeEnabled(value);
-    patchSetting({ fastCodeEnabled: value });
-  };
-
-  const handleFastCodeLevel = (level) => {
-    setFastCodeLevel(level);
-    patchSetting({ fastCodeLevel: level });
-  };
-
   const refreshPxpipeStatus = useCallback(async () => {
     setPxpipeStatus((s) => ({ ...s, loading: true }));
     try {
@@ -432,6 +407,13 @@ export default function TokenSaverClient() {
     patchSetting({ pxpipeMinChars: next });
   };
 
+  const handleHeadroomTimeoutBlur = () => {
+    const raw = Math.round(Number(headroomTimeoutMs));
+    const next = Number.isFinite(raw) && raw > 0 ? raw : 3000;
+    setHeadroomTimeoutMs(next);
+    patchSetting({ headroomTimeoutMs: next });
+  };
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -441,16 +423,13 @@ export default function TokenSaverClient() {
           setRtkEnabledState(data.rtkEnabled !== false);
           setHeadroomEnabled(!!data.headroomEnabled);
           setHeadroomUrl(data.headroomUrl || "http://localhost:8787");
+          if (typeof data.headroomTimeoutMs === "number") setHeadroomTimeoutMs(data.headroomTimeoutMs);
           setCodeAware(data.headroomCodeAware === true);
           setKompress(data.headroomKompress !== false);
           setCavemanEnabled(!!data.cavemanEnabled);
           setCavemanLevel(data.cavemanLevel || "full");
           setPonytailEnabled(!!data.ponytailEnabled);
           setPonytailLevel(data.ponytailLevel || "full");
-          setContextSaverEnabled(!!data.contextSaverEnabled);
-          setContextSaverLevel(data.contextSaverLevel || "full");
-          setFastCodeEnabled(!!data.fastCodeEnabled);
-          setFastCodeLevel(data.fastCodeLevel || "full");
           setPxpipeEnabled(!!data.pxpipeEnabled);
           if (typeof data.pxpipeMinChars === "number") setPxpipeMinChars(data.pxpipeMinChars);
           refreshHeadroomStatus();
@@ -762,89 +741,6 @@ export default function TokenSaverClient() {
             />
           </div>
         </div>
-        <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">
-              Context Saver{" "}
-              <span className="text-xs font-normal text-text-muted">(alias context7)</span>
-            </p>
-            <p className="text-sm text-text-muted">
-              Retain/compress conversation context across turns — cumulative working memory
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {contextSaverEnabled && (
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1.5">
-                  {CONTEXT_SAVER_LEVELS.map((lvl) => (
-                    <button
-                      key={lvl.id}
-                      onClick={() => handleContextSaverLevel(lvl.id)}
-                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
-                        contextSaverLevel === lvl.id
-                          ? "bg-primary text-white border-primary"
-                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
-                      }`}
-                      title={lvl.desc}
-                    >
-                      {lvl.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-primary">
-                  {
-                    CONTEXT_SAVER_LEVELS.find((lvl) => lvl.id === contextSaverLevel)
-                      ?.desc
-                  }
-                </p>
-              </div>
-            )}
-            <Toggle
-              checked={contextSaverEnabled}
-              onChange={() => handleContextSaverEnabled(!contextSaverEnabled)}
-            />
-          </div>
-        </div>
-        <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">Fast Code</p>
-            <p className="text-sm text-text-muted">
-              Bias toward terse, production-quality code: stdlib-first, minimal boilerplate
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {fastCodeEnabled && (
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1.5">
-                  {FAST_CODE_LEVELS.map((lvl) => (
-                    <button
-                      key={lvl.id}
-                      onClick={() => handleFastCodeLevel(lvl.id)}
-                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
-                        fastCodeLevel === lvl.id
-                          ? "bg-primary text-white border-primary"
-                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
-                      }`}
-                      title={lvl.desc}
-                    >
-                      {lvl.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-primary">
-                  {
-                    FAST_CODE_LEVELS.find((lvl) => lvl.id === fastCodeLevel)
-                      ?.desc
-                  }
-                </p>
-              </div>
-            )}
-            <Toggle
-              checked={fastCodeEnabled}
-              onChange={() => handleFastCodeEnabled(!fastCodeEnabled)}
-            />
-          </div>
-        </div>
         {/* PXPIPE hidden from UI — experimental, not exposed to users yet */}
         {false && (
         <div className="flex items-center justify-between pt-4 mt-4 border-t border-border gap-4 flex-wrap">
@@ -929,6 +825,19 @@ export default function TokenSaverClient() {
             <p className="text-xs text-text-muted">
               Use a local proxy for Start/Stop, or an external Docker sidecar
               like http://headroom:8787.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium">Timeout (ms)</p>
+            <Input
+              value={String(headroomTimeoutMs)}
+              onChange={(e) => setHeadroomTimeoutMs(e.target.value)}
+              onBlur={handleHeadroomTimeoutBlur}
+              placeholder="3000"
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-text-muted">
+              Request timeout in milliseconds. Defaults to 3000 ms.
             </p>
           </div>
           {headroomManaged ? (

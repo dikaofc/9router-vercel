@@ -18,7 +18,6 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
-import { OPENCODE_FREE_BROKEN_MODELS } from "open-sse/executors/opencode.js";
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
@@ -472,7 +471,6 @@ export async function buildModelsList(kindFilter, options = {}) {
         const allowAsLlm = kind === "imageToText" && kindFilter.includes(LLM_KIND);
         if (!kindFilter.includes(kind) && !allowAsLlm) continue;
         if (isDisabled(outputAlias, modelId) || isDisabled(staticAlias, modelId)) continue;
-        if (OPENCODE_FREE_BROKEN_MODELS.has(modelId) && providerId === "opencode") continue;
 
         const model = {
           id: `${outputAlias}/${modelId}`,
@@ -532,18 +530,6 @@ export async function buildModelsList(kindFilter, options = {}) {
     }
   }
 
-  // Inject models not in the upstream catalog but confirmed available.
-  // These are added after the main loop so they appear regardless of whether
-  // the provider has a connection or uses static PROVIDER_MODELS.
-  const EXTRA_MODELS = {};
-  for (const [alias, extraIds] of Object.entries(EXTRA_MODELS)) {
-    const existingIds = new Set(models.filter(m => m.id?.startsWith(`${alias}/`)).map(m => m.id.slice(alias.length + 1)));
-    for (const modelId of extraIds) {
-      if (existingIds.has(modelId) || isDisabled(alias, modelId)) continue;
-      models.push({ id: `${alias}/${modelId}`, object: "model", owned_by: alias });
-    }
-  }
-
   const dedupedModels = [];
   const seenModelIds = new Set();
   for (const model of models) {
@@ -568,8 +554,6 @@ export async function OPTIONS() {
   });
 }
 
-export const dynamic = "force-dynamic";
-
 /**
  * GET /v1/models - OpenAI compatible models list (LLM/chat models only by default).
  * For other capabilities use /v1/models/{kind} (image, tts, stt, embedding, image-to-text, web).
@@ -578,8 +562,6 @@ export async function GET(request) {
   try {
     // Detect cross-instance recursive /models fetch (another 9router fetching our /models)
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
-    // Explicit: serves live DB state, never statically cached
-    void request;
     const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },

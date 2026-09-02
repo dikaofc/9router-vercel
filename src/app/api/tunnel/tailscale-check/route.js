@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";

@@ -90,7 +90,7 @@ export async function createSqlJsAdapter(filePath) {
     db.exec(`SAVEPOINT ${sp}`);
     try {
       const result = fn();
-      try { db.exec(`RELEASE ${sp}`); } catch {}
+      db.exec(`RELEASE ${sp}`);
       scheduleSave();
       return result;
     } catch (e) {

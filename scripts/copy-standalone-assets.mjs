@@ -40,12 +40,5 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(dirname(fileURLToPath(import.meta.url)), "copy-standalone-assets.mjs")) {
-  try {
-    copyStandaloneAssets();
-  } catch (e) {
-    // Non-standalone platforms (Vercel, Netlify) don't have .next/standalone.
-    // The postbuild hook should not fail the build on those platforms.
-    console.warn(`[standalone-assets] Skipped: ${e.message}`);
-    process.exit(0);
-  }
+  copyStandaloneAssets();
 }

@@ -115,9 +115,11 @@ export default function ProvidersPage() {
     return () => unregisterSearch();
   }, [registerSearch, unregisterSearch]);
 
-  const matchSearch = (name) =>
-    !searchQuery.trim() ||
-    name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+  const matchSearch = (name) => {
+    if (!searchQuery.trim()) return true;
+    if (!name) return false;
+    return name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+  };
 
   const sortByPriority = (entries, authType) =>
     [...entries].sort(([ka, a], [kb, b]) => {
@@ -301,12 +303,7 @@ export default function ProvidersPage() {
   );
   const freeEntries = Object.entries(FREE_PROVIDERS)
     .filter(([, info]) => !info.hidden && matchSearch(info.name))
-    .sort(([, a], [, b]) => {
-      const fa = a.featured ? 1 : 0;
-      const fb = b.featured ? 1 : 0;
-      if (fa !== fb) return fb - fa;
-      return (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0);
-    });
+    .sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0));
   // Free Tier cards may be oauth-only (e.g. kimchi) or dual-auth, so count via
   // dualAuthTypes per provider instead of a fixed "apikey" — otherwise oauth
   // connections are invisible here (mismatch with the detail page).
@@ -482,12 +479,6 @@ export default function ProvidersPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
             Free Tier Providers
-            <Badge variant="success" size="sm">
-              <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
-                No Key Required
-              </span>
-            </Badge>
           </h2>
           <button
             onClick={() => handleBatchTest("free")}
@@ -667,7 +658,6 @@ export default function ProvidersPage() {
 function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isNoAuth = !!provider.noAuth;
-  const isFeatured = !!provider.featured;
 
   const dotColors = {
     free: "bg-green-500",
@@ -686,7 +676,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
     <Link href={`/dashboard/providers/${providerId}`} className="group min-w-0">
       <Card
         padding="xs"
-        className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""} ${isFeatured ? "featured-provider-card" : ""}`}
+        className={`h-full hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${allDisabled ? "opacity-50" : ""}`}
       >
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -708,22 +698,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
               />
             </div>
             <div className="min-w-0">
-              <h3 className="truncate font-semibold">
-                {provider.name}
-                {isFeatured && (
-                  <Badge variant="success" size="sm" className="ml-1.5">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[11px]">auto_awesome</span>
-                      Featured
-                    </span>
-                  </Badge>
-                )}
-              </h3>
-              {isFeatured && (
-                <p className="text-[11px] text-green-600 dark:text-green-400 font-medium mt-0.5">
-                  No API key needed — ready to use
-                </p>
-              )}
+              <h3 className="truncate font-semibold">{provider.name}</h3>
               <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
                 {allDisabled ? (
                   <Badge variant="default" size="sm">

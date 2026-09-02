@@ -6,7 +6,6 @@ import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
 import { resolveQoderCredentials, resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
-import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
 // Returns true if API key is accepted (status !== 401 && !== 403).
@@ -21,7 +20,7 @@ async function probeWebProvider(provider, apiKey) {
   if (!cfg) return null;
   if (cfg.authType === "none") return true; // no-auth (e.g. searxng)
 
-  let url = cfg.baseUrl;
+  let url = cfg.validateUrl || cfg.baseUrl;
   const headers = { "Content-Type": "application/json" };
   let body;
 
@@ -105,10 +104,6 @@ export async function POST(request) {
           return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
         }
         const modelsUrl = `${node.baseUrl?.replace(/\/$/, "")}/models`;
-        // SSRF guard: re-validate URL before fetching
-        try { assertPublicUrl(modelsUrl); } catch (e) {
-          return NextResponse.json({ error: "Blocked: URL points to internal network" }, { status: 400 });
-        }
         const res = await fetch(modelsUrl, {
           headers: { "Authorization": `Bearer ${apiKey}` },
         });
@@ -126,10 +121,6 @@ export async function POST(request) {
           return NextResponse.json({ error: "Custom Embedding node not found" }, { status: 404 });
         }
         const baseUrl = node.baseUrl?.replace(/\/$/, "");
-        // SSRF guard: re-validate URL before fetching
-        try { assertPublicUrl(`${baseUrl}/models`); } catch (e) {
-          return NextResponse.json({ error: "Blocked: URL points to internal network" }, { status: 400 });
-        }
         const modelsRes = await fetch(`${baseUrl}/models`, {
           headers: { "Authorization": `Bearer ${apiKey}` },
         });
@@ -167,11 +158,6 @@ export async function POST(request) {
 
         const messagesUrl = `${normalizedBase}/v1/messages`;
         const model = node.defaultModel || "claude-3-haiku-20240307";
-
-        // SSRF guard: re-validate URL before fetching
-        try { assertPublicUrl(messagesUrl); } catch (e) {
-          return NextResponse.json({ error: "Blocked: URL points to internal network" }, { status: 400 });
-        }
 
         const res = await fetch(messagesUrl, {
           method: "POST",

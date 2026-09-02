@@ -63,9 +63,6 @@ export function backupDbLite(adapter, destDir, destName = "data.sqlite") {
 }
 
 export function pruneOldBackups() {
-  // Skip on Vercel (ephemeral /tmp)
-  const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
-  if (IS_VERCEL) return;
   if (!fs.existsSync(BACKUPS_DIR)) return;
   const entries = fs.readdirSync(BACKUPS_DIR, { withFileTypes: true })
     .filter((e) => e.isDirectory())

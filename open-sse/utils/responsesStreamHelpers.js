@@ -25,28 +25,6 @@ export function isOpenAIResponsesTerminalEvent(eventName, chunk) {
 
 const sharedEncoder = new TextEncoder();
 
-// Terminal finish for aborted OpenAI-family SSE streams so AI-SDK clients
-// don't throw "stream ended without finish_reason" and retry from zero.
-// Upstream can disconnect/stall mid-stream (pi.dev EOFs after reasoning
-// deltas, Vercel freezes idle fns, network resets) — the transform flush()
-// then never runs, so no finish chunk is emitted. This guarantees the
-// client always receives a terminal finish_reason + [DONE].
-export function buildOpenAIFinishTerminalBytes() {
-  const chunk = {
-    id: `chatcmpl-${Date.now()}`,
-    object: "chat.completion.chunk",
-    created: Math.floor(Date.now() / 1000),
-    model: "unknown",
-    choices: [{ index: 0, delta: {}, finish_reason: "stop" }]
-  };
-  return sharedEncoder.encode(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`);
-}
-
-// Claude-format terminal for aborted streams (Claude Code / agents).
-export function buildClaudeMessageStopTerminalBytes() {
-  return sharedEncoder.encode(`event: message_stop\ndata: {"type":"message_stop"}\n\n`);
-}
-
 // Encoded response.failed + [DONE] payload for aborted/stalled Responses passthrough streams
 export function buildAbortedResponsesTerminalBytes() {
   return sharedEncoder.encode(`${formatIncompleteOpenAIResponsesStreamFailure()}data: [DONE]\n\n`);

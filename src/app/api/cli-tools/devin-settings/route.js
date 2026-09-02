@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+"use server";
 
 import { NextResponse } from "next/server";
 import { exec } from "child_process";

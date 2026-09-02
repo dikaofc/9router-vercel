@@ -1,6 +1,4 @@
-export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
 import {
   getProvider,
   generateAuthData,
@@ -92,27 +90,6 @@ export async function GET(request, { params }) {
 
     if (action === "authorize") {
       const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
-
-      // N2 fix: validate redirect_uri to prevent authorization code leakage.
-      // Only allow localhost (local OAuth callback) or the deployment's own origin.
-      try {
-        const redirectUrl = new URL(redirectUri);
-        const host = redirectUrl.hostname.toLowerCase();
-        const isLocalhost = host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
-        const isSelfOrigin = IS_VERCEL && (
-          redirectUrl.hostname.endsWith(".vercel.app") ||
-          redirectUrl.hostname === process.env.VERCEL_URL
-        );
-        if (!isLocalhost && !isSelfOrigin) {
-          return NextResponse.json(
-            { error: "Invalid redirect_uri: must be localhost or deployment origin" },
-            { status: 403 }
-          );
-        }
-      } catch {
-        return NextResponse.json({ error: "Invalid redirect_uri format" }, { status: 400 });
-      }
-
       // Collect provider-specific meta params (e.g. gitlab passes baseUrl, clientId, clientSecret)
       const reservedParams = new Set(["redirect_uri"]);
       const meta = {};

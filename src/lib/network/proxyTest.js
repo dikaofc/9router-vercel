@@ -26,11 +26,6 @@ function normalizeString(value) {
 }
 
 export async function testProxyUrl({ proxyUrl, testUrl, timeoutMs } = {}) {
-  // Skip on Vercel (no proxy support)
-  const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
-  if (IS_VERCEL) {
-    return { ok: false, status: 400, error: "Proxy testing not supported on Vercel" };
-  }
   const normalizedProxyUrl = normalizeString(proxyUrl);
   if (!normalizedProxyUrl) {
     return { ok: false, status: 400, error: "proxyUrl is required" };

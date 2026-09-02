@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 import { handleVideoGet } from "@/sse/handlers/videoGeneration.js";
 
 export async function OPTIONS() {

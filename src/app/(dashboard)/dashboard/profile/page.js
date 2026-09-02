@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { Card, Button, Toggle, Input } from "@/shared/components";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
-import SupabaseSettingsCard from "./SupabaseSettingsCard";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
@@ -935,8 +934,6 @@ export default function ProfilePage() {
             )}
           </div>
         </Card>
-
-        <SupabaseSettingsCard />
 
         {/* Single Sign-On (SSO) */}
         <Card>

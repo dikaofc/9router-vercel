@@ -14,7 +14,6 @@ export default {
     },
   },
   category: "oauth",
-  defaultEnabled: false,
   transport: {
     baseUrl: "https://api.cline.bot/api/v1/chat/completions",
     headers: {

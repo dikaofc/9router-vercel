@@ -1,42 +1,53 @@
+import figlet from "figlet";
+import gradient from "gradient-string";
+import chalkAnimation from "chalk-animation";
+
 /**
- * Display banner — zero-dep replacement for figlet/gradient/chalk-animation.
- * Cross-platform: uses plain ANSI escape codes (works on Windows, Linux, macOS, Android).
+ * Display banner
  */
 export function showBanner() {
-  console.log("");
-  console.log("  ╔══════════════════════════════════════╗");
-  console.log("  ║      🚀 9Router — AI Router         ║");
-  console.log("  ║      OAuth CLI for AI Providers      ║");
-  console.log("  ╚══════════════════════════════════════╝");
-  console.log("");
+  const banner = figlet.textSync("LLM Proxy", {
+    font: "ANSI Shadow",
+    horizontalLayout: "default",
+    verticalLayout: "default",
+  });
+
+  console.log("\n" + gradient.pastel.multiline(banner));
+  console.log(gradient.cristal("  🚀 OAuth CLI for AI Providers\n"));
 }
 
 /**
  * Display simple banner (no animation)
  */
 export function showSimpleBanner() {
-  console.log("");
-  console.log("  9Router — OAuth CLI for AI Providers");
-  console.log("");
+  const banner = figlet.textSync("EP CLI", {
+    font: "Standard",
+    horizontalLayout: "default",
+  });
+  console.log(gradient.pastel.multiline(banner));
+  console.log(gradient.cristal("  OAuth CLI for AI Providers\n"));
 }
 
 /**
- * Display success message
+ * Display success animation
  */
 export async function showSuccess(message) {
-  console.log("");
-  console.log(`  ✨ ${message}`);
-  console.log("");
-  return Promise.resolve();
+  return new Promise((resolve) => {
+    const animation = chalkAnimation.rainbow(`\n✨ ${message}\n`);
+    setTimeout(() => {
+      animation.stop();
+      resolve();
+    }, 1000);
+  });
 }
 
 /**
- * Display loading animation — terminal-native spinner (cross-platform)
+ * Display loading animation
  */
 export function showLoading(text) {
   const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
   let i = 0;
-
+  
   const interval = setInterval(() => {
     process.stdout.write(`\r${frames[i]} ${text}`);
     i = (i + 1) % frames.length;
@@ -49,3 +60,4 @@ export function showLoading(text) {
     },
   };
 }
+

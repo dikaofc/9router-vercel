@@ -13,7 +13,6 @@ export default {
     },
   },
   category: "apikey",
-  defaultEnabled: false,
   transport: {
     baseUrl: "https://api.anthropic.com/v1/messages",
     format: "claude",

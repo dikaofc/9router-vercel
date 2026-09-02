@@ -54,25 +54,3 @@ export function assertPublicUrl(rawUrl) {
   if (isBlockedIpv4(host)) throw new Error("Blocked URL: private IP");
   if (host.includes(":") && isBlockedIpv6(host)) throw new Error("Blocked URL: private IP");
 }
-
-// Max redirects to follow before aborting (prevents SSRF via redirect chains)
-export const MAX_REDIRECTS = 5;
-
-// Safe fetch wrapper: follows redirects with SSRF re-validation on each hop.
-// Returns the final Response or throws on blocked redirect target.
-export async function safeFetch(url, init = {}) {
-  let currentUrl = url;
-  for (let i = 0; i <= MAX_REDIRECTS; i++) {
-    assertPublicUrl(currentUrl);
-    const res = await fetch(currentUrl, { ...init, redirect: "manual" });
-    if (res.status >= 300 && res.status < 400) {
-      const location = res.headers.get("location");
-      if (!location) throw new Error("Redirect with no Location header");
-      // Resolve relative redirects against current URL
-      currentUrl = new URL(location, currentUrl).href;
-      continue;
-    }
-    return res;
-  }
-  throw new Error("Too many redirects");
-}

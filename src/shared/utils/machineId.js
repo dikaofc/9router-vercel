@@ -4,8 +4,6 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DATA_DIR } from '@/lib/dataDir';
 
-const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
-
 const MACHINE_ID_FILE = path.join(DATA_DIR, 'machine-id');
 const AUTH_DIR = path.join(DATA_DIR, 'auth');
 const CLI_SECRET_FILE = path.join(AUTH_DIR, 'cli-secret');
@@ -13,15 +11,10 @@ const CLI_AUTH_SALT = '9r-cli-auth';
 let cachedRawId = null;
 let cachedCliSecret = null;
 
+// Persist raw machine ID to file → guarantees CLI/server/middleware see same value
+// even when machineIdSync fails or returns inconsistent values across runtimes.
 function loadRawMachineId() {
   if (cachedRawId) return cachedRawId;
-
-  // On Vercel: use env var or generate stable ID (no filesystem)
-  if (IS_VERCEL) {
-    cachedRawId = process.env.MACHINE_ID || crypto.createHash('sha256').update('9router-vercel-' + (process.env.VERCEL_PROJECT_NAME || 'default')).digest('hex');
-    return cachedRawId;
-  }
-
   try {
     cachedRawId = fs.readFileSync(MACHINE_ID_FILE, 'utf8').trim();
     if (cachedRawId) return cachedRawId;
@@ -38,15 +31,9 @@ function loadRawMachineId() {
   return cachedRawId;
 }
 
+// Random secret persisted on first run → unpredictable CLI token even when machineId leaks.
 function loadCliSecret() {
   if (cachedCliSecret) return cachedCliSecret;
-
-  // On Vercel: use env var or generate stable secret (no filesystem)
-  if (IS_VERCEL) {
-    cachedCliSecret = process.env.CLI_SECRET || crypto.createHash('sha256').update('9router-cli-vercel-' + (process.env.VERCEL_PROJECT_NAME || 'default')).digest('hex');
-    return cachedCliSecret;
-  }
-
   try {
     cachedCliSecret = fs.readFileSync(CLI_SECRET_FILE, 'utf8').trim();
     if (cachedCliSecret) return cachedCliSecret;

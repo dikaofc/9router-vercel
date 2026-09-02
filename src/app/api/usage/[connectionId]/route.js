@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 // Ensure proxyFetch is loaded to patch globalThis.fetch
 import "open-sse/index.js";
 

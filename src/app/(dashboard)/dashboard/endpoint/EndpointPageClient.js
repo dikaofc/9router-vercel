@@ -17,10 +17,8 @@ import EndpointRow from "./components/EndpointRow";
 import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
-export default function APIPageClient({ machineId, isVercel = false }) {
-  const IS_VERCEL = isVercel;
+export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
-  const [persistent, setPersistent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
@@ -261,7 +259,6 @@ export default function APIPageClient({ machineId, isVercel = false }) {
         const res = await fetch("/api/keys");
         if (!res.ok) return [];
         const data = await res.json();
-        setPersistent(data.persistent ?? false);
         return data.keys || [];
       };
 
@@ -738,7 +735,7 @@ export default function APIPageClient({ machineId, isVercel = false }) {
             copied={copied}
             onCopy={copy}
           />
-          {!IS_VERCEL && (<> {/* Cloudflare Tunnel */}
+          {/* Cloudflare Tunnel */}
           <div className="flex items-center gap-2">
             <span className={`text-xs font-mono px-1.5 py-0.5 rounded shrink-0 min-w-[88px] text-center ${
               tunnelEnabled ? "bg-primary/10 text-primary" : "bg-surface-2 text-text-muted"
@@ -914,8 +911,6 @@ export default function APIPageClient({ machineId, isVercel = false }) {
               </Button>
             )}
           </div>
-
-        </>)} {/* end IS_VERCEL tunnel/tailscale hide */}
         </div>
 
         {/* Pre-enable security gate banner */}
@@ -928,8 +923,8 @@ export default function APIPageClient({ machineId, isVercel = false }) {
           </div>
         )}
 
-        {/* Security warnings (hidden on Vercel) */}
-        {!IS_VERCEL && (tunnelEnabled || tsEnabled) && (
+        {/* Security warnings when tunnel or tailscale is active */}
+        {(tunnelEnabled || tsEnabled) && (
           <div className="mt-4 flex flex-col gap-2">
             {!requireApiKey && (
               <SecurityWarning
@@ -953,8 +948,8 @@ export default function APIPageClient({ machineId, isVercel = false }) {
           </div>
         )}
 
-        {/* Tunnel dashboard access (hidden on Vercel) */}
-        {!IS_VERCEL && (tunnelEnabled || tsEnabled) && (
+        {/* Tunnel dashboard access option */}
+        {(tunnelEnabled || tsEnabled) && (
           <div className="mt-4 pt-4 border-t border-border flex items-center gap-3">
             <Toggle
               checked={tunnelDashboardAccess}
@@ -979,21 +974,6 @@ export default function APIPageClient({ machineId, isVercel = false }) {
             Create Key
           </Button>
         </div>
-
-        {IS_VERCEL && !persistent && (
-          <div className="mb-4">
-            <SecurityWarning
-              message="Deployed on Vercel: the database is in-memory and ephemeral. API keys created here disappear on every cold start or when a request hits a different serverless instance — that is why your keys keep vanishing and /v1 calls return 401. To keep stable keys, either set the API_KEYS environment variable (comma-separated) in your Vercel project, or connect a Vercel KV / Upstash store (KV_REST_API_URL + KV_REST_API_TOKEN) so the database persists across instances."
-            />
-          </div>
-        )}
-        {IS_VERCEL && persistent && (
-          <div className="mb-4">
-            <SecurityWarning
-              message="Deployed on Vercel with a persistent KV store connected — API keys and other settings now survive cold starts and are shared across all serverless instances."
-            />
-          </div>
-        )}
 
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
           <div>
@@ -1165,7 +1145,7 @@ export default function APIPageClient({ machineId, isVercel = false }) {
         </div>
       </Modal>
 
-      {!IS_VERCEL && (<> {/* Enable Tunnel Modal */}
+      {/* Enable Tunnel Modal */}
       <Modal
         isOpen={showEnableTunnelModal}
         title="Enable Tunnel"
@@ -1311,7 +1291,6 @@ export default function APIPageClient({ machineId, isVercel = false }) {
         </div>
       </Modal>
 
-      </>)} {/* end IS_VERCEL modal hide */}
       {/* Confirm Modal */}
       <ConfirmModal
         isOpen={!!confirmState}
@@ -1328,5 +1307,4 @@ export default function APIPageClient({ machineId, isVercel = false }) {
 
 APIPageClient.propTypes = {
   machineId: PropTypes.string.isRequired,
-  isVercel: PropTypes.bool,
 };

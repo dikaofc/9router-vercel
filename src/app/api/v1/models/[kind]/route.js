@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 import { buildModelsList } from "../route.js";
 
 // URL slug → service kind(s). `web` covers both webSearch and webFetch.

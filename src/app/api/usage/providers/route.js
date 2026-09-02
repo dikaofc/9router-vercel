@@ -3,9 +3,6 @@ import { getDistinctProviders } from "@/lib/requestDetailsDb";
 import { getProviderNodes } from "@/lib/localDb";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 /**
  * GET /api/usage/providers
  * Returns list of unique providers from request details

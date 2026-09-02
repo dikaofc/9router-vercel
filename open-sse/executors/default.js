@@ -152,8 +152,7 @@ export class DefaultExecutor extends BaseExecutor {
     const desc = rt?.auth || AUTH_DESCRIPTORS[this.provider] || this.resolveAuthDescriptor();
     // Hooks run BEFORE auth so dynamic overlays can't clobber the token.
     for (const hook of desc.hooks || []) HEADER_HOOKS[hook]?.(headers, credentials);
-    // Skip auth header for noAuth providers (e.g. free public endpoints that reject unknown tokens)
-    if (!this.noAuth) applyAuth(headers, desc, credentials);
+    applyAuth(headers, desc, credentials);
 
     if (this.provider === "claude" && model) {
       headers["Anthropic-Beta"] = selectAnthropicBeta(model);

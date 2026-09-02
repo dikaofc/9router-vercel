@@ -1,11 +1,14 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
-import { getAdapter } from "@/lib/db/driver.js";
-
-export const runtime = "nodejs";
-export const maxDuration = 60;
 
 let initialized = false;
+
+async function ensureInitialized() {
+  if (!initialized) {
+    await initTranslators();
+    initialized = true;
+  }
+}
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -22,13 +25,6 @@ export async function OPTIONS() {
  * Now handled by translator pattern (openai-responses format auto-detected)
  */
 export async function POST(request) {
-  // Pre-warm the DB adapter so the usage write path is not a cold-start chain
-  // that races the serverless freeze after the SSE response finishes.
-  if (!initialized) {
-    try { await Promise.all([initTranslators(), getAdapter()]); }
-    catch { await initTranslators(); }
-    initialized = true;
-  }
-
+  await ensureInitialized();
   return await handleChat(request);
 }

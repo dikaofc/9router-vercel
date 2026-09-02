@@ -3,7 +3,6 @@ import { UPDATER_CONFIG } from "@/shared/constants/config";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
-const IS_VERCEL = !!(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_REGION);
 
 function createSilentWavFile() {
   const sampleRate = 16000;
@@ -51,64 +50,11 @@ async function getInternalHeaders() {
   return headers;
 }
 
-function getDefaultBaseUrl() {
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  if (process.env.VERCEL) {
-    const url = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
-    if (url) return url.startsWith("http") ? url : `https://${url}`;
-  }
-  return `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`;
-}
-
-/**
- * On Vercel Hobby, serverless functions cannot fetch their own deployment URL.
- * Instead of self-fetching, call the chat handler directly in-process.
- */
-async function callChatDirectly(model, maxTokens = 1024) {
-  const { handleChat } = await import("@/sse/handlers/chat.js");
-  const { initTranslators } = await import("open-sse/translator/index.js");
-  await initTranslators();
-
-  const body = {
-    model,
-    max_tokens: maxTokens,
-    stream: false,
-    messages: [{ role: "user", content: "hi" }],
-  };
-
-  // Pass API key + CLI token so handleChat's requireApiKey check passes.
-  // Without this, the dashboard Test button always 401 on Vercel when
-  // requireApiKey=true because the fake request had no credentials.
-  const headers = { "Content-Type": "application/json" };
-  try {
-    const keys = await getApiKeys();
-    const apiKey = keys.find((k) => k.isActive !== false)?.key;
-    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-  } catch {}
-  headers["x-9r-cli-token"] = await getConsistentMachineId(CLI_TOKEN_SALT);
-
-  const fakeRequest = new Request("http://localhost/api/v1/chat/completions", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  const response = await handleChat(fakeRequest);
-  return response;
-}
-
-export async function pingModelByKind(model, kind, baseUrl = getDefaultBaseUrl()) {
+export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`) {
   const headers = await getInternalHeaders();
   const start = Date.now();
 
-  // On Vercel, use direct in-process call instead of self-fetch
-  const useDirectCall = IS_VERCEL && kind === "llm";
-
   if (kind === "embedding") {
-    if (useDirectCall) {
-      // Embeddings can't be tested directly, skip with friendly message
-      return { ok: false, latencyMs: 0, error: "Self-test not available on Vercel (embedding)", status: 0 };
-    }
     const res = await fetch(`${baseUrl}/api/v1/embeddings`, {
       method: "POST",
       headers,
@@ -132,9 +78,6 @@ export async function pingModelByKind(model, kind, baseUrl = getDefaultBaseUrl()
   }
 
   if (kind === "image") {
-    if (useDirectCall) {
-      return { ok: false, latencyMs: 0, error: "Self-test not available on Vercel (image)", status: 0 };
-    }
     const res = await fetch(`${baseUrl}/api/v1/images/generations`, {
       method: "POST",
       headers,
@@ -159,9 +102,6 @@ export async function pingModelByKind(model, kind, baseUrl = getDefaultBaseUrl()
   }
 
   if (kind === "stt") {
-    if (useDirectCall) {
-      return { ok: false, latencyMs: 0, error: "Self-test not available on Vercel (stt)", status: 0 };
-    }
     const form = new FormData();
     const sampleAudio = createSilentWavFile();
     form.append("file", sampleAudio, "test.wav");
@@ -190,52 +130,15 @@ export async function pingModelByKind(model, kind, baseUrl = getDefaultBaseUrl()
     return { ok: true, latencyMs, error: null, status: res.status };
   }
 
-  // LLM chat — on Vercel use direct in-process call
-  if (useDirectCall) {
-    try {
-      const response = await callChatDirectly(model);
-      const latencyMs = Date.now() - start;
-
-      // Response is a NextResponse — read body
-      const text = await response.text().catch(() => "");
-      let parsed = null;
-      try { parsed = text ? JSON.parse(text) : null; } catch {}
-
-      if (response.status !== 200) {
-        const detail = parsed?.error?.message || parsed?.error || text;
-        return { ok: false, latencyMs, status: response.status, error: `HTTP ${response.status}${detail ? `: ${String(detail).slice(0, 240)}` : ""}` };
-      }
-
-      if (parsed?.error) {
-        const providerError = parsed?.error?.message || parsed?.error || "Provider returned an error";
-        return { ok: false, latencyMs, status: response.status, error: String(providerError).slice(0, 240) };
-      }
-
-      const hasChoices = Array.isArray(parsed?.choices) && parsed.choices.length > 0;
-      const firstChoice = parsed?.choices?.[0] || {};
-      const hasReasoning = firstChoice.message?.reasoning || firstChoice.message?.reasoning_content || firstChoice.message?.thinking || firstChoice.message?.thinking_content;
-      const contentEmpty = !String(firstChoice.message?.content || "").trim();
-
-      if (hasChoices && firstChoice.finish_reason === "length" && contentEmpty && hasReasoning) {
-        return { ok: true, latencyMs, error: null, status: 200, note: "reasoning-only response (length-limited)" };
-      }
-
-      if (!hasChoices) {
-        return { ok: false, latencyMs, status: 200, error: "Provider returned no completion choices for this model" };
-      }
-
-      return { ok: true, latencyMs, error: null, status: 200 };
-    } catch (err) {
-      return { ok: false, latencyMs: Date.now() - start, status: 500, error: `Direct call failed: ${String(err.message).slice(0, 240)}` };
-    }
-  }
-
-  // Non-Vercel: use HTTP self-fetch
   const res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
     method: "POST",
     headers,
     body: JSON.stringify({
       model,
+      // 1024 tokens: reasoning models (ClinePass/kimi-k3, deepseek-v4-pro, etc.) spend
+      // their budget on chain-of-thought before emitting an answer. A tiny probe like
+      // max_tokens:16 starves the answer and yields a false "no choices" failure.
+      // See issue #3010.
       max_tokens: 1024,
       stream: false,
       messages: [{ role: "user", content: "hi" }],
@@ -280,6 +183,9 @@ export async function pingModelByKind(model, kind, baseUrl = getDefaultBaseUrl()
 
   const hasChoices = Array.isArray(parsed?.choices) && parsed.choices.length > 0;
 
+  // Soft-pass (issue #3010): a reasoning model may burn its whole budget on
+  // chain-of-thought and return finish_reason:"length" with empty content but
+  // non-empty reasoning/thinking. That's a successful connection, not a failure.
   const firstChoice = parsed?.choices?.[0] || {};
   const hasReasoning =
     firstChoice.message?.reasoning ||

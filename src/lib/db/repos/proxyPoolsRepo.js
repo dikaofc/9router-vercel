@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
-import { flushCurrentAdapter } from "../requestFlush.js";
 
 function rowToPool(row) {
   if (!row) return null;
@@ -75,7 +74,6 @@ export async function createProxyPool(data) {
     updatedAt: now,
   };
   upsert(db, pool);
-  await flushCurrentAdapter();
   return pool;
 }
 
@@ -89,7 +87,6 @@ export async function updateProxyPool(id, data) {
     upsert(db, merged);
     result = merged;
   });
-  await flushCurrentAdapter();
   return result;
 }
 
@@ -102,6 +99,5 @@ export async function deleteProxyPool(id) {
     removed = rowToPool(row);
     db.run(`DELETE FROM proxyPools WHERE id = ?`, [id]);
   });
-  await flushCurrentAdapter();
   return removed;
 }

@@ -4,8 +4,6 @@ import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
 import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, COLORS } from "./usageTracking.js";
 import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
-import { toOpenAIFinish } from "../translator/concerns/finishReason.js";
-import { OPENAI_FINISH } from "../translator/schema/finishReasons.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
 
 import { SSE_DONE, SSE_HEADERS, SSE_HEADERS_NO_BUFFER } from "./sseConstants.js";
@@ -77,6 +75,35 @@ export function createSSEStream(options = {}) {
   let openAIResponsesTerminalSeen = false;
   let openAIResponsesDoneSent = false;
   let streamDoneSent = false;  // track duplicate [DONE] across transform + flush
+  let finalized = false;
+
+  // Usage/logging tail, callable from transform() as well as flush(): a client that
+  // closes right after the terminal event cancels the reader, and flush() never runs.
+  const finalizeStream = () => {
+    if (finalized) return;
+    finalized = true;
+
+    const isPassthrough = mode === STREAM_MODE.PASSTHROUGH;
+    let finalUsage = isPassthrough ? usage : state?.usage;
+
+    if (!hasValidUsage(finalUsage) && totalContentLength > 0) {
+      finalUsage = estimateUsage(body, totalContentLength, isPassthrough ? FORMATS.OPENAI : sourceFormat);
+      if (isPassthrough) usage = finalUsage; else state.usage = finalUsage;
+    }
+
+    if (hasValidUsage(finalUsage)) {
+      logUsage(isPassthrough ? provider : (state?.provider || targetFormat), finalUsage, model, connectionId, apiKey);
+    } else {
+      appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
+    }
+
+    if (onStreamComplete) {
+      onStreamComplete({
+        content: accumulatedContent,
+        thinking: accumulatedThinking
+      }, finalUsage, ttftAt);
+    }
+  };
 
   return new TransformStream({
     transform(chunk, controller) {
@@ -107,6 +134,7 @@ export function createSSEStream(options = {}) {
         if (mode === STREAM_MODE.PASSTHROUGH) {
           let output;
           let injectedUsage = false;
+          let responsesTerminal = false;
 
           if (trimmed.startsWith("data:") && trimmed.slice(5).trim() !== "[DONE]") {
             try {
@@ -170,35 +198,9 @@ export function createSSEStream(options = {}) {
                 usage = mergeUsage(usage, extracted);
               }
 
-              // Fold provider-native reasoning fields into OpenAI delta.reasoning_content.
-              // Some compatible gateways (pi.dev, Decrypt/GLM-style) emit reasoning in
-              // `delta.reasoning` or `message.reasoning` instead of `reasoning_content`;
-              // an AI SDK client's reasoning tracker only watches reasoning_content, so
-              // otherwise it never leaves "thinking" state and loops forever.
-              if (delta && !delta.reasoning_content) {
-                const v = delta.reasoning ?? delta.thinking ?? parsed.message?.reasoning;
-                if (typeof v === "string" && v) {
-                  delta.reasoning_content = v;
-                  fieldsInjected = true;
-                }
-              }
+              responsesTerminal = isOpenAIResponsesTerminalEvent(currentOpenAIResponsesEvent, parsed);
 
-              // Normalize upstream finish_reason into the OpenAI enum the AI SDK expects.
-              // Gateways like pi.dev send raw `stop_reason` / absent finish_reason on the
-              // final chunk; the SDK treats a missing finish_reason as "still thinking" and
-              // re-polls, producing the endless loop.
-              const nativeFinish = parsed.choices?.[0]?.finish_reason ?? parsed.choices?.[0]?.stop_reason ?? parsed.finish_reason;
-              let finishReason = null;
-              if (nativeFinish != null) {
-                const norm = toOpenAIFinish(String(nativeFinish), FORMATS.OPENAI);
-                finishReason = norm || OPENAI_FINISH.STOP;
-                if (parsed.choices?.[0]) {
-                  parsed.choices[0].finish_reason = finishReason;
-                  fieldsInjected = true;
-                }
-              }
-
-              const isFinishChunk = finishReason != null;
+              const isFinishChunk = parsed.choices?.[0]?.finish_reason;
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
@@ -232,6 +234,8 @@ export function createSSEStream(options = {}) {
 
           reqLogger?.appendConvertedChunk?.(output);
           controller.enqueue(sharedEncoder.encode(output));
+          // Responses clients (codex CLI) close on response.completed instead of [DONE]
+          if (responsesTerminal) finalizeStream();
           continue;
         }
 
@@ -322,6 +326,8 @@ export function createSSEStream(options = {}) {
           controller.enqueue(sharedEncoder.encode(output));
           currentOpenAIResponsesEvent = null;
           sseEmittedCount++;
+          // Responses clients (codex) close on response.completed instead of [DONE]
+          if (openAIResponsesTerminalSeen) finalizeStream();
           continue;
         }
 
@@ -385,62 +391,38 @@ export function createSSEStream(options = {}) {
             controller.enqueue(sharedEncoder.encode(output));
           }
 
-          if (!hasValidUsage(usage) && totalContentLength > 0) {
-            usage = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
-          }
-
-          if (hasValidUsage(usage)) {
-            logUsage(provider, usage, model, connectionId, apiKey);
-          } else {
-            appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
-          }
-          
           // IMPORTANT: In passthrough mode we still must terminate the SSE stream.
           // Some clients (e.g. OpenClaw) expect the OpenAI-style sentinel:
           //   data: [DONE]\n\n
           // Without it they can hang until timeout and trigger failover.
           // Gemini-family clients (Antigravity, Vertex, Gemini) reject this sentinel with 400 syntax errors.
           const isGeminiFamily = provider === "antigravity" || provider === "gemini" || provider === "vertex";
-          // Ensure the stream terminates with a finish chunk BEFORE the [DONE] sentinel.
-          // Gateways like pi.dev can EOF without a terminal choice.finish_reason
-          // (they send reasoning deltas then close). AI SDK clients also stop at
-          // the first [DONE] — anything after it is never read, so emitting the
-          // sentinel first makes the client throw "stream ended without
-          // finish_reason" and retry from zero. Inject a final `finish_reason:"stop"`
-          // chunk first so the client ends cleanly and the stop reason reaches it.
           if (!streamDoneSent && !isGeminiFamily) {
-            const finalReason = "stop";
-            const finishChunk = {
-              id: `chatcmpl-${Date.now()}`,
-              object: "chat.completion.chunk",
-              created: Math.floor(Date.now() / 1000),
-              model: model || "unknown",
-              choices: [{ index: 0, delta: {}, finish_reason: finalReason }]
-            };
-            if (usage && Object.keys(usage).length > 0) {
-              finishChunk.usage = filterUsageForFormat(addBufferToUsage(usage), FORMATS.OPENAI);
-            }
-            const finishOutput = `data: ${JSON.stringify(finishChunk)}\n\n`;
-            reqLogger?.appendConvertedChunk?.(finishOutput);
-            controller.enqueue(sharedEncoder.encode(finishOutput));
             const doneOutput = "data: [DONE]\n\n";
             reqLogger?.appendConvertedChunk?.(doneOutput);
             controller.enqueue(sharedEncoder.encode(doneOutput));
-            streamDoneSent = true;
           }
 
-          if (onStreamComplete) {
-            onStreamComplete({
-              content: accumulatedContent,
-              thinking: accumulatedThinking
-            }, usage, ttftAt);
-          }
+          finalizeStream();
           return;
         }
 
-        if (buffer.trim() && !streamDoneSent) {
-          const parsed = parseSSELine(buffer.trim());
-          if (parsed && !parsed.done) {
+        if (buffer.trim()) {
+          // Same parse as the transform loop: without targetFormat this only
+          // accepts "data: " lines, so an NDJSON provider (Ollama) lost whatever
+          // arrived without its closing newline.
+          const parsed = parseSSELine(buffer.trim(), targetFormat);
+          // parseSSELine turns the SSE sentinel "data: [DONE]" into { done: true },
+          // which must not be translated. An Ollama chunk also carries done:true,
+          // but it is the real final chunk — it holds finish_reason and the token
+          // counts — so it has to go through.
+          const isDoneSentinel = parsed?.done && targetFormat !== FORMATS.OLLAMA;
+          if (parsed && !isDoneSentinel) {
+            // Same accumulation the transform loop does, so finalizeStream() can
+            // log a tail chunk's tokens instead of falling back to null.
+            const extracted = extractUsage(parsed);
+            if (extracted) state.usage = mergeUsage(state.usage, extracted);
+
             const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
 
             if (translated?._openaiIntermediate) {
@@ -461,13 +443,6 @@ export function createSSEStream(options = {}) {
           }
         }
 
-        // If upstream EOF'd without a finish_reason (e.g. pi.dev sends reasoning
-        // deltas then closes), force a terminal stop so the translator emits the
-        // correct final chunk for the client's source format. OpenAI-SDK clients
-        // otherwise throw "stream ended without finish_reason" and abort — which
-        // also leaves usage at 0. Only when upstream sent no finish at all.
-        if (!state.finishReason) state.finishReason = "stop";
-
         const flushed = translateResponse(targetFormat, sourceFormat, null, state);
 
         if (flushed?._openaiIntermediate) {
@@ -478,35 +453,11 @@ export function createSSEStream(options = {}) {
         }
 
         if (flushed?.length > 0) {
-          let openaiFinishEmitted = false;
           for (const item of flushed) {
             if (item === null || item === undefined) continue;
-            if (item.choices?.[0]?.finish_reason) openaiFinishEmitted = true;
             const output = formatSSE(item, sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
             controller.enqueue(sharedEncoder.encode(output));
-          }
-          // Belt-and-suspenders: if the translator emitted no finish_reason for
-          // an OpenAI client (upstream final chunk malformed/dropped), synthesize
-          // one so the client doesn't throw "stream ended without finish_reason".
-          const isGeminiFamily = provider === "antigravity" || provider === "gemini" || provider === "vertex";
-          if (sourceFormat === FORMATS.OPENAI && !openaiFinishEmitted && !isGeminiFamily) {
-            const finishChunk = {
-              id: `chatcmpl-${Date.now()}`,
-              object: "chat.completion.chunk",
-              created: Math.floor(Date.now() / 1000),
-              model: model || "unknown",
-              choices: [{ index: 0, delta: {}, finish_reason: "stop" }]
-            };
-            if (state?.usage && Object.keys(state.usage).length > 0) {
-              finishChunk.usage = filterUsageForFormat(addBufferToUsage(state.usage), FORMATS.OPENAI);
-            }
-            const finishOutput = `data: ${JSON.stringify(finishChunk)}\n\n`;
-            reqLogger?.appendConvertedChunk?.(finishOutput);
-            controller.enqueue(sharedEncoder.encode(finishOutput));
-            const doneOutput = "data: [DONE]\n\n";
-            reqLogger?.appendConvertedChunk?.(doneOutput);
-            controller.enqueue(sharedEncoder.encode(doneOutput));
           }
         }
 
@@ -527,24 +478,10 @@ export function createSSEStream(options = {}) {
           streamDoneSent = true;
         }
 
-        if (!hasValidUsage(state?.usage) && totalContentLength > 0) {
-          state.usage = estimateUsage(body, totalContentLength, sourceFormat);
-        }
-
-        if (hasValidUsage(state?.usage)) {
-          logUsage(state.provider || targetFormat, state.usage, model, connectionId, apiKey);
-        } else {
-          appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
-        }
-        
-        if (onStreamComplete) {
-          onStreamComplete({
-            content: accumulatedContent,
-            thinking: accumulatedThinking
-          }, state?.usage, ttftAt);
-        }
+        finalizeStream();
       } catch (error) {
         console.log("Error in flush:", error);
+        finalizeStream();
       }
     }
   });

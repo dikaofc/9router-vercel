@@ -5,7 +5,7 @@ import { RISK_NOTICE } from "@/shared/constants/providersDisplay";
 const MEDIA_ENTRY_KEYS = [
   "serviceKinds", "ttsConfig", "sttConfig", "embeddingConfig",
   "imageConfig", "imageToTextConfig", "videoConfig", "musicConfig",
-  "searchViaChat", "searchConfig", "fetchConfig",
+  "searchViaChat", "searchConfig", "fetchConfig", "credentialFallback",
   "modelsFetcher", "mediaPriority", "hiddenKinds",
 ];
 
@@ -30,7 +30,6 @@ function buildProviderEntry(r) {
     ...(r.regions ? { regions: r.regions, defaultRegion: r.defaultRegion } : {}),
     ...(r.hasProviderSpecificData ? { hasProviderSpecificData: true } : {}),
     ...(r.noAuth ? { noAuth: true } : {}),
-    ...(r.featured ? { featured: true } : {}),
     ...(r.passthroughModels ? { passthroughModels: true } : {}),
     ...(r.hasOAuth ? { hasOAuth: true } : {}),
     ...(r.authModes ? { authModes: r.authModes } : {}),

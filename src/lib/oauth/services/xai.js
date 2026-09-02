@@ -1,4 +1,4 @@
-import { openBrowser } from "../openBrowser.js";
+import open from "open";
 import { OAuthService } from "./oauth.js";
 import crypto from "crypto";
 import { XAI_CONFIG, XAI_PKCE_VERIFIER_BYTES } from "../constants/xai.js";
@@ -198,7 +198,7 @@ export class XaiService extends OAuthService {
 
       console.log("\nOpening browser for xAI authentication...");
       console.log(`If browser doesn't open, visit:\n${authUrl}\n`);
-      await openBrowser(authUrl);
+      await open(authUrl);
 
       spinner.start("Waiting for xAI authorization...");
       await new Promise((resolve, reject) => {
