@@ -18,11 +18,9 @@ function getDataDir() {
     fs.mkdirSync(configured, { recursive: true });
     return configured;
   } catch (e) {
-    if (e?.code === "EACCES" || e?.code === "EPERM" || e?.code === "ENOENT" || e?.code === "EROFS") {
-      console.warn(`[DATA_DIR] '${configured}' not usable (${e.code}) → fallback ~/.${APP_NAME}`);
-      return defaultDir();
-    }
-    throw e;
+    // Fail-open: any mkdir failure → homedir fallback (was allowlist-only before)
+    console.warn(`[DATA_DIR] '${configured}' not usable (${e?.code || e?.message}) → fallback ~/.${APP_NAME}`);
+    return defaultDir();
   }
 }
 

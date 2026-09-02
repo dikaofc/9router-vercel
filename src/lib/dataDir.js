@@ -26,11 +26,11 @@ export function getDataDir() {
     fs.mkdirSync(configured, { recursive: true });
     return configured;
   } catch (e) {
-    if (e?.code === "EACCES" || e?.code === "EPERM" || e?.code === "ENOENT" || e?.code === "EROFS") {
-      console.warn(`[DATA_DIR] '${configured}' not usable (${e.code}) → fallback ~/.${APP_NAME}`);
-      return defaultDir();
-    }
-    throw e;
+    // Fail-open: ANY mkdir failure falls back to homedir. Previous allowlist
+    // missed EEXIST/ENOTDIR/EINVAL/EBUSY/etc and re-threw at import time,
+    // crashing instrumentation register() and taking down every route.
+    console.warn(`[DATA_DIR] '${configured}' not usable (${e?.code || e?.message}) → fallback ~/.${APP_NAME}`);
+    return defaultDir();
   }
 }
 

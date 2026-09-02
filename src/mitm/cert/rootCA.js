@@ -1,7 +1,17 @@
 const path = require("path");
 const fs = require("fs");
-const forge = require("node-forge");
 const { MITM_DIR } = require("../paths");
+
+let _forge = null;
+function getForge() {
+  if (_forge) return _forge;
+  try {
+    _forge = require("node-forge");
+    return _forge;
+  } catch (e) {
+    throw new Error(`node-forge unavailable (optional dep): ${e.message}`);
+  }
+}
 
 const ROOT_CA_KEY_PATH = path.join(MITM_DIR, "rootCA.key");
 const ROOT_CA_CERT_PATH = path.join(MITM_DIR, "rootCA.crt");
@@ -11,6 +21,7 @@ const ROOT_CA_CERT_PATH = path.join(MITM_DIR, "rootCA.crt");
  */
 function isCertExpired(certPath) {
   try {
+    const forge = getForge();
     const cert = forge.pki.certificateFromPem(fs.readFileSync(certPath, "utf8"));
     const expiryThreshold = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     return cert.validity.notAfter < expiryThreshold;
@@ -24,6 +35,7 @@ function isCertExpired(certPath) {
  * This Root CA will sign all dynamic leaf certificates
  */
 function generateRootCA() {
+  const forge = getForge();
   const exists = fs.existsSync(ROOT_CA_KEY_PATH) && fs.existsSync(ROOT_CA_CERT_PATH);
   if (exists && !isCertExpired(ROOT_CA_CERT_PATH)) {
     console.log("✅ Root CA already exists");
@@ -96,6 +108,7 @@ function generateRootCA() {
  * Load Root CA from disk
  */
 function loadRootCA() {
+  const forge = getForge();
   if (!fs.existsSync(ROOT_CA_KEY_PATH) || !fs.existsSync(ROOT_CA_CERT_PATH)) {
     throw new Error("Root CA not found. Generate it first.");
   }
@@ -113,6 +126,7 @@ function loadRootCA() {
  * Generate leaf certificate for a specific domain, signed by Root CA
  */
 function generateLeafCert(domain, rootCA) {
+  const forge = getForge();
   // Generate key pair for leaf cert
   const keys = forge.pki.rsa.generateKeyPair(2048);
 

@@ -26,7 +26,11 @@ export function ensureDirs() {
     }
     return;
   }
-  for (const dir of [DATA_DIR, DB_DIR, BACKUPS_DIR]) {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  try {
+    for (const dir of [DATA_DIR, DB_DIR, BACKUPS_DIR]) {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch (e) {
+    console.warn(`[paths] ensureDirs skipped: ${e?.message || e}`);
   }
 }

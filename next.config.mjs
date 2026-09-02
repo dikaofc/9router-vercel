@@ -39,6 +39,9 @@ const nextConfig = {
     root: tracingRoot
   },
   outputFileTracingRoot: tracingRoot,
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/sql.js/dist/*.wasm"],
+  },
   outputFileTracingExcludes: {
     "*": []
   },

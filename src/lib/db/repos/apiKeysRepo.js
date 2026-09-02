@@ -68,8 +68,12 @@ export async function deleteApiKey(id) {
 }
 
 export async function validateApiKey(key) {
-  const db = await getAdapter();
-  const row = db.get(`SELECT isActive FROM apiKeys WHERE key = ?`, [key]);
-  if (!row) return false;
-  return row.isActive === 1 || row.isActive === true;
+  try {
+    const db = await getAdapter();
+    const row = db.get(`SELECT isActive FROM apiKeys WHERE key = ?`, [key]);
+    if (!row) return false;
+    return row.isActive === 1 || row.isActive === true;
+  } catch {
+    return false;
+  }
 }

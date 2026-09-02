@@ -10,17 +10,29 @@ const DEFAULT_PASSWORD = "123456";
 
 function loadJwtSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  // On Vercel only /tmp is writable — don't crash if DATA_DIR is read-only.
+  // Fall back to a deterministic per-deploy secret so auth still works
+  // (just not persisted across cold starts, which is acceptable for serverless).
   const file = path.join(DATA_DIR, "jwt-secret");
   try {
     return fs.readFileSync(file, "utf8").trim();
   } catch {}
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const generated = crypto.randomBytes(32).toString("hex");
-  fs.writeFileSync(file, generated, { mode: 0o600 });
-  return generated;
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const generated = crypto.randomBytes(32).toString("hex");
+    fs.writeFileSync(file, generated, { mode: 0o600 });
+    return generated;
+  } catch {
+    // Read-only FS (Vercel) — use ephemeral secret derived from env
+    return process.env.VERCEL_GIT_COMMIT_SHA || crypto.randomBytes(32).toString("hex");
+  }
 }
 
-const SECRET = new TextEncoder().encode(loadJwtSecret());
+let _secret = null;
+function getSecret() {
+  if (!_secret) _secret = new TextEncoder().encode(loadJwtSecret());
+  return _secret;
+}
 
 export function shouldUseSecureCookie(request) {
   const forceSecureCookie = process.env.AUTH_COOKIE_SECURE === "true";
@@ -34,13 +46,13 @@ export async function createDashboardAuthToken(claims = {}) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("24h")
-    .sign(SECRET);
+    .sign(getSecret());
 }
 
 export async function verifyDashboardAuthToken(token) {
   if (!token) return false;
   try {
-    await jwtVerify(token, SECRET);
+    await jwtVerify(token, getSecret());
     return true;
   } catch {
     return false;
@@ -50,7 +62,7 @@ export async function verifyDashboardAuthToken(token) {
 export async function getDashboardAuthSession(token) {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload;
   } catch {
     return null;

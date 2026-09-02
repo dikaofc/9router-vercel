@@ -9,14 +9,24 @@ const CLI_TOKEN_SALT = "9r-cli-auth";
 
 let cachedCliToken = null;
 async function getCliToken() {
-  if (!cachedCliToken) cachedCliToken = await getConsistentMachineId(CLI_TOKEN_SALT);
+  if (!cachedCliToken) {
+    try {
+      cachedCliToken = await getConsistentMachineId(CLI_TOKEN_SALT);
+    } catch {
+      cachedCliToken = "unavailable";
+    }
+  }
   return cachedCliToken;
 }
 
 async function hasValidCliToken(request) {
-  const token = request.headers.get(CLI_TOKEN_HEADER);
-  if (!token) return false;
-  return token === await getCliToken();
+  try {
+    const token = request.headers.get(CLI_TOKEN_HEADER);
+    if (!token) return false;
+    return token === await getCliToken();
+  } catch {
+    return false;
+  }
 }
 
 // Public API paths — no auth required (LLM API has its own key auth inside handler).
@@ -146,27 +156,43 @@ function extractApiKey(request) {
 }
 
 async function hasValidApiKey(request) {
-  const apiKey = extractApiKey(request);
-  if (!apiKey) return false;
-  return await validateApiKey(apiKey);
+  try {
+    const apiKey = extractApiKey(request);
+    if (!apiKey) return false;
+    return await validateApiKey(apiKey);
+  } catch {
+    return false;
+  }
 }
 
 async function canAccessPublicLlmApi(request) {
-  if (isLocalRequest(request)) return true;
-  if (await hasValidCliToken(request)) return true;
-  return await hasValidApiKey(request);
+  try {
+    if (isLocalRequest(request)) return true;
+    if (await hasValidCliToken(request)) return true;
+    return await hasValidApiKey(request);
+  } catch {
+    return false;
+  }
 }
 
 async function canAccessLocalOnlyRoute(request) {
-  if (await hasValidCliToken(request)) return true;
-  // Browser on host: loopback Host + Origin (blocks tunnel/CSRF) + auth (JWT or requireLogin=false)
-  if (isLocalRequest(request) && await isAuthenticated(request)) return true;
-  return false;
+  try {
+    if (await hasValidCliToken(request)) return true;
+    // Browser on host: loopback Host + Origin (blocks tunnel/CSRF) + auth (JWT or requireLogin=false)
+    if (isLocalRequest(request) && await isAuthenticated(request)) return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 async function hasValidToken(request) {
-  const token = request.cookies.get("auth_token")?.value;
-  return await verifyDashboardAuthToken(token);
+  try {
+    const token = request.cookies.get("auth_token")?.value;
+    return await verifyDashboardAuthToken(token);
+  } catch {
+    return false;
+  }
 }
 
 // Read settings directly from DB to avoid self-fetch deadlock in proxy
@@ -179,10 +205,14 @@ async function loadSettings() {
 }
 
 async function isAuthenticated(request) {
-  if (await hasValidToken(request)) return true;
-  const settings = await loadSettings();
-  if (settings && settings.requireLogin === false) return true;
-  return false;
+  try {
+    if (await hasValidToken(request)) return true;
+    const settings = await loadSettings();
+    if (settings && settings.requireLogin === false) return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function isPublicApi(pathname) {
@@ -199,80 +229,95 @@ export const __test__ = {
 };
 
 export async function proxy(request) {
-  const { pathname } = request.nextUrl;
+  try {
+    const { pathname } = request.nextUrl;
 
-  // Local-only gate for spawn-capable / host-secret routes.
-  if (LOCAL_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
-    if (!(await canAccessLocalOnlyRoute(request))) {
-      return NextResponse.json({ error: "Local only: CLI token required" }, { status: 403 });
+    // Local-only gate for spawn-capable / host-secret routes.
+    if (LOCAL_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
+      if (!(await canAccessLocalOnlyRoute(request))) {
+        return NextResponse.json({ error: "Local only: CLI token required" }, { status: 403 });
+      }
     }
-  }
 
-  // Always protected - require valid JWT or local CLI token (machineId-based)
-  if (ALWAYS_PROTECTED.some((p) => pathname.startsWith(p))) {
-    if (await hasValidCliToken(request) || await hasValidToken(request))
-      return NextResponse.next();
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    // Always protected - require valid JWT or local CLI token (machineId-based)
+    if (ALWAYS_PROTECTED.some((p) => pathname.startsWith(p))) {
+      if ((await hasValidCliToken(request)) || (await hasValidToken(request)))
+        return NextResponse.next();
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  if (isPublicLlmApi(pathname)) {
-    if (await canAccessPublicLlmApi(request)) return NextResponse.next();
-    return NextResponse.json({ error: "API key required for remote API access" }, { status: 401 });
-  }
+    if (isPublicLlmApi(pathname)) {
+      if (await canAccessPublicLlmApi(request)) return NextResponse.next();
+      return NextResponse.json({ error: "API key required for remote API access" }, { status: 401 });
+    }
 
-  // Deny-by-default for /api/* — public allow-list bypasses, everything else requires auth.
-  if (pathname.startsWith("/api/")) {
-    if (isPublicApi(pathname)) return NextResponse.next();
-    if (await hasValidCliToken(request) || await isAuthenticated(request))
-      return NextResponse.next();
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    // Deny-by-default for /api/* — public allow-list bypasses, everything else requires auth.
+    if (pathname.startsWith("/api/")) {
+      if (isPublicApi(pathname)) return NextResponse.next();
+      if ((await hasValidCliToken(request)) || (await isAuthenticated(request)))
+        return NextResponse.next();
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  // Protect all dashboard routes
-  if (pathname.startsWith("/dashboard")) {
-    let requireLogin = true;
-    let tunnelDashboardAccess = true;
+    // Protect all dashboard routes
+    if (pathname.startsWith("/dashboard")) {
+      let requireLogin = true;
+      let tunnelDashboardAccess = true;
 
-    try {
-      const settings = await loadSettings();
-      if (settings) {
-        requireLogin = settings.requireLogin !== false;
-        tunnelDashboardAccess = settings.tunnelDashboardAccess === true;
+      try {
+        const settings = await loadSettings();
+        if (settings) {
+          requireLogin = settings.requireLogin !== false;
+          tunnelDashboardAccess = settings.tunnelDashboardAccess === true;
 
-        // Block tunnel/tailscale access if disabled (redirect to login)
-        if (!tunnelDashboardAccess) {
-          const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
-          const tunnelHost = settings.tunnelUrl ? new URL(settings.tunnelUrl).hostname.toLowerCase() : "";
-          const tailscaleHost = settings.tailscaleUrl ? new URL(settings.tailscaleUrl).hostname.toLowerCase() : "";
-          if ((tunnelHost && host === tunnelHost) || (tailscaleHost && host === tailscaleHost)) {
-            return NextResponse.redirect(new URL("/login", request.url));
+          // Block tunnel/tailscale access if disabled (redirect to login)
+          if (!tunnelDashboardAccess) {
+            const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
+            const tunnelHost = settings.tunnelUrl ? new URL(settings.tunnelUrl).hostname.toLowerCase() : "";
+            const tailscaleHost = settings.tailscaleUrl ? new URL(settings.tailscaleUrl).hostname.toLowerCase() : "";
+            if ((tunnelHost && host === tunnelHost) || (tailscaleHost && host === tailscaleHost)) {
+              return NextResponse.redirect(new URL("/login", request.url));
+            }
           }
         }
+      } catch {
+        // On error, keep defaults (require login, block tunnel)
       }
-    } catch {
-      // On error, keep defaults (require login, block tunnel)
+
+      // If login not required, allow through
+      if (!requireLogin) return NextResponse.next();
+
+      // Verify JWT token
+      const token = request.cookies.get("auth_token")?.value;
+      if (token) {
+        try {
+          if (await verifyDashboardAuthToken(token)) {
+            return NextResponse.next();
+          } else {
+            return NextResponse.redirect(new URL("/login", request.url));
+          }
+        } catch {
+          return NextResponse.redirect(new URL("/login", request.url));
+        }
+      }
+
+      return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    // If login not required, allow through
-    if (!requireLogin) return NextResponse.next();
-
-    // Verify JWT token
-    const token = request.cookies.get("auth_token")?.value;
-    if (token) {
-      if (await verifyDashboardAuthToken(token)) {
-        return NextResponse.next();
-      } else {
-        return NextResponse.redirect(new URL("/login", request.url));
-      }
+    // Redirect / to /dashboard if logged in, or /dashboard if it's the root
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.next();
+  } catch (e) {
+    // Fail-open: any unexpected throw (DB not ready, fs read-only, crypto) must
+    // NOT become FUNCTION_INVOCATION_FAILED which 500s every route.
+    // Public/health routes get NextResponse.next() so they stay reachable;
+    // everything else gets a normal 500 JSON (not an infra crash).
+    console.warn(`[proxy] fail-open due to error: ${e?.message || e}`);
+    const pathname = request?.nextUrl?.pathname || "";
+    if (isPublicApi(pathname) || isPublicLlmApi(pathname)) return NextResponse.next();
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-
-  // Redirect / to /dashboard if logged in, or /dashboard if it's the root
-  if (pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
-  return NextResponse.next();
 }
