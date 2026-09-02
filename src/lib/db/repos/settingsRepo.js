@@ -64,6 +64,23 @@ const DEFAULT_SETTINGS = {
   pxpipeTimeoutMs: 15000,
 };
 
+// ── hot-path cache: getSettings() is called 3-6× per chat request.
+// Without this each call hits SQLite/KV. 2s TTL cuts DB hits ~80% with
+// negligible staleness (dashboard mutations invalidate immediately).
+const SETTINGS_TTL_MS = Math.max(500, parseInt(process.env.SETTINGS_CACHE_TTL_MS || "2000", 10) || 2000);
+if (!global._settingsCache) global._settingsCache = { raw: null, merged: null, ts: 0 };
+const cache = global._settingsCache;
+
+function isCacheValid() {
+  return cache.merged && (Date.now() - cache.ts < SETTINGS_TTL_MS);
+}
+
+export function invalidateSettingsCache() {
+  cache.raw = null;
+  cache.merged = null;
+  cache.ts = 0;
+}
+
 async function readRaw() {
   const db = await getAdapter();
   const row = db.get(`SELECT data FROM settings WHERE id = 1`);
@@ -90,8 +107,13 @@ export function mergeWithDefaults(raw) {
 }
 
 export async function getSettings() {
+  if (isCacheValid()) return cache.merged;
   const raw = await readRaw();
-  return mergeWithDefaults(raw);
+  const merged = mergeWithDefaults(raw);
+  cache.raw = raw;
+  cache.merged = merged;
+  cache.ts = Date.now();
+  return merged;
 }
 
 // Atomic read-merge-write inside transaction (prevents losing concurrent updates)
@@ -107,7 +129,12 @@ export async function updateSettings(updates) {
       [stringifyJson(next)],
     );
   });
-  return mergeWithDefaults(next);
+  invalidateSettingsCache();
+  const merged = mergeWithDefaults(next);
+  cache.raw = next;
+  cache.merged = merged;
+  cache.ts = Date.now();
+  return merged;
 }
 
 export async function isCloudEnabled() {

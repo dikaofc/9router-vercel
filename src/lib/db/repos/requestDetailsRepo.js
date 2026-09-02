@@ -6,6 +6,8 @@ const DEFAULT_BATCH_SIZE = 20;
 const DEFAULT_FLUSH_INTERVAL_MS = 5000;
 const DEFAULT_MAX_JSON_SIZE = 5 * 1024;
 const CONFIG_CACHE_TTL_MS = 5000;
+// Cap in-memory buffer so a DB outage cannot OOM the process.
+const WRITE_BUFFER_CAP = Math.max(200, parseInt(process.env.OBSERVABILITY_BUFFER_CAP || "500", 10) || 500);
 
 let cachedConfig = null;
 let cachedConfigTs = 0;
@@ -90,7 +92,6 @@ async function flushToDatabase() {
   if (writeBuffer.length === 0) return;
   isFlushing = true;
   try {
-    // Drain entire buffer (loop in case more pushed during await)
     while (writeBuffer.length > 0) {
       const items = writeBuffer.splice(0, writeBuffer.length);
       const db = await getAdapter();
@@ -144,10 +145,12 @@ export async function saveRequestDetail(detail) {
   const config = await getObservabilityConfig();
   if (!config.enabled) {return;}
 
+  // Bounded buffer — drop oldest if cap exceeded (DB down / burst).
+  if (writeBuffer.length >= WRITE_BUFFER_CAP) {
+    writeBuffer.splice(0, writeBuffer.length - WRITE_BUFFER_CAP + 1);
+  }
   writeBuffer.push(detail);
 
-  // Trigger immediate flush if batch threshold reached.
-  // flushToDatabase() drains entire buffer in a loop, so all pushes during await are persisted.
   if (writeBuffer.length >= config.batchSize) {
     if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
     flushToDatabase().catch((e) => console.error("[requestDetailsRepo] flush err:", e));
@@ -156,6 +159,7 @@ export async function saveRequestDetail(detail) {
       flushTimer = null;
       flushToDatabase().catch(() => {});
     }, config.flushIntervalMs);
+    flushTimer?.unref?.();
   }
 }
 

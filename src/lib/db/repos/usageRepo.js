@@ -14,6 +14,12 @@ const RING_CAP = 50;
 const CONN_CACHE_TTL_MS = 30 * 1000;
 const PERIOD_MS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000, "60d": 5184000000 };
 
+// Retention — env-tunable, Vercel-safe (no-op on ephemeral /tmp).
+const RETENTION_DAYS = Math.max(1, parseInt(process.env.USAGE_RETENTION_DAYS || "30", 10) || 30);
+const RETENTION_MAX_ROWS = Math.max(1000, parseInt(process.env.USAGE_RETENTION_MAX_ROWS || "50000", 10) || 50000);
+const DAILY_RETENTION_DAYS = Math.max(7, parseInt(process.env.USAGE_DAILY_RETENTION_DAYS || "90", 10) || 90);
+if (!global._usagePruneLast) global._usagePruneLast = 0;
+
 // In-memory state shared across Next.js modules
 if (!global._pendingRequests) global._pendingRequests = { byModel: {}, byAccount: {} };
 if (!global._lastErrorProvider) global._lastErrorProvider = { provider: "", ts: 0 };
@@ -734,6 +740,39 @@ export async function getChartData(period = "7d") {
 function formatLogDate(date = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+// Prune old usageHistory / usageDaily rows. No-op on Vercel (/tmp ephemeral) is cheap.
+export async function pruneExpiredUsage() {
+  const now = Date.now();
+  // Throttle: at most once per 30 min unless forced
+  if (now - global._usagePruneLast < 30 * 60 * 1000) return { pruned: 0 };
+  global._usagePruneLast = now;
+  let pruned = 0;
+  try {
+    const db = await getAdapter();
+    const cutoffIso = new Date(now - RETENTION_DAYS * 86400000).toISOString();
+    const r1 = db.run(`DELETE FROM usageHistory WHERE timestamp < ?`, [cutoffIso]);
+    pruned += r1?.changes || 0;
+    // Cap by row count (keeps DB small even with high throughput)
+    const cnt = db.get(`SELECT COUNT(*) as c FROM usageHistory`)?.c || 0;
+    if (cnt > RETENTION_MAX_ROWS) {
+      const excess = cnt - RETENTION_MAX_ROWS;
+      const r2 = db.run(`DELETE FROM usageHistory WHERE id IN (SELECT id FROM usageHistory ORDER BY timestamp ASC LIMIT ?)`, [excess]);
+      pruned += r2?.changes || 0;
+    }
+    // Daily aggregate retention
+    const dailyCutoff = new Date();
+    dailyCutoff.setDate(dailyCutoff.getDate() - DAILY_RETENTION_DAYS);
+    const dk = `${dailyCutoff.getFullYear()}-${String(dailyCutoff.getMonth()+1).padStart(2,"0")}-${String(dailyCutoff.getDate()).padStart(2,"0")}`;
+    const r3 = db.run(`DELETE FROM usageDaily WHERE dateKey < ?`, [dk]);
+    pruned += r3?.changes || 0;
+    if (pruned) console.log(`[usageRepo] pruned ${pruned} expired rows (keep ${RETENTION_DAYS}d / ${RETENTION_MAX_ROWS} rows)`);
+    try { db.exec?.("PRAGMA wal_checkpoint(TRUNCATE)"); } catch {}
+  } catch (e) {
+    console.warn(`[usageRepo] pruneExpiredUsage skipped: ${e?.message || e}`);
+  }
+  return { pruned };
 }
 
 // No-op: request log is now derived from usageHistory table on read.

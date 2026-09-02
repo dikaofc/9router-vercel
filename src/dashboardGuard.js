@@ -3,6 +3,11 @@ import { getSettings, validateApiKey } from "@/lib/localDb";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { verifyDashboardAuthToken } from "@/lib/auth/dashboardSession";
 import { hasTrustedPeerHeaders } from "@/lib/auth/trustedPeer";
+import { loginLimiter } from "@/lib/rateLimiter";
+
+// Brute-force guard for /api/auth/login — super ringan, fail-open, in-memory only.
+// Env: LOGIN_RATE_LIMIT_MAX (default 20/min per IP), disable with LOGIN_RATE_LIMIT=off.
+const LOGIN_RL_OFF = String(process.env.LOGIN_RATE_LIMIT || "").toLowerCase() === "off";
 
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
 const CLI_TOKEN_SALT = "9r-cli-auth";
@@ -231,6 +236,17 @@ export const __test__ = {
 export async function proxy(request) {
   try {
     const { pathname } = request.nextUrl;
+
+    // Anti brute-force: throttle login attempts per IP (fail-open).
+    if (!LOGIN_RL_OFF && pathname === "/api/auth/login" && request.method === "POST") {
+      try {
+        const ip = request.headers.get("x-9r-real-ip") || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+        if (!loginLimiter.allow(ip)) {
+          const sec = Math.ceil(loginLimiter.retryAfterMs(ip) / 1000);
+          return NextResponse.json({ error: "Too many login attempts, try again later" }, { status: 429, headers: { "Retry-After": String(sec || 30) } });
+        }
+      } catch {}
+    }
 
     // Local-only gate for spawn-capable / host-secret routes.
     if (LOCAL_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
