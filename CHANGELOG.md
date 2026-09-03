@@ -1,53 +1,145 @@
-# v0.5.57 (2026-08-26)
+# v0.5.65 (2026-09-03)
 
 ## Features
-- **Providers**: add Pollinations AI as free provider (no auth required, OpenAI-compatible endpoint)
-- **Cross-platform**: add universal start script (start-platform.js) with auto-detection for Termux/Windows/VPS
-- **Android/Termux**: low memory optimization (256MB-1024MB based on RAM), no detach (keeps terminal alive), sql.js fallback
-- **Windows**: batch script with PowerShell system detection and memory optimization
-- **Linux VPS**: systemd service support, daemon mode, log rotation
-- **Memory**: auto-detect RAM and adjust Node.js heap limits for low-end devices
-
-## npm Scripts
-- `npm run start:termux` - Start on Android Termux
-- `npm run start:windows` - Start on Windows
-- `npm run start:vps` - Start on Linux VPS
-- `npm run start:platform` - Auto-detect platform and start
-- `npm run start:low-memory` - Force low memory mode
-
----
-
-# v0.5.56 (2026-08-23)
-
-## Features
-- **PWA**: offline caching service worker for Android/iOS home screen install
-- **Themes**: 35 themes (liquid glass, neobrutalism, minimalism, classic, fluid glass, tinted glass, glow, professional, super fast, super 3D, frost, cyberpunk, neon rave, vaporwave, arcade, Y2K, aurora, bento grid, HUD, terminal, luxury black & gold, monochrome, dark premium, startup modern, neo-classical, AI native) with SVG icons, full light/dark mode, zero-latency switching
-- **Token Saver**: all features (RTK, Headroom, Caveman, Ponytail, Context Saver, Fast Code, PXPIPE) default ON automatically
-- **CLI Tools**: add Pi Agent support for 9Router integration
-- **CI/CD**: GitHub Actions build testing workflow on push/PR
-- **Android/Termux**: cross-platform start script, zero-dep OAuth UI (ANSI escape codes instead of chalk/ora/figlet)
+- **Fetch**: add Ollama Cloud web fetch provider
+- **Gemini / Antigravity**: add Gemini 3.8 Flash support and bump IDE fingerprint to 2.11.0
+- **Claude**: add Claude Fable 5.1 support (adaptive thinking with `output_config.effort`), bump Claude Code fingerprint to 2.1.258 for new-model access
+- **Providers**: add client-side status filter (All / Active / Inactive / No connection) on the Providers dashboard; add max height and scroll for connection list
+- **Providers & Models**: streamline tokenrouter model catalog down to 22 flagship/newest models and add missing provider icons; refresh Codebuddy-CN catalog (add hy4-preview/hy3/glm-5.3/kimi-k3-1, drop EOL glm-5.0/glm-4.7)
+- **Models**: capability toggles (vision, reasoning) when adding custom models with upsert and live caps refresh
+- **CLI tools**: support saving and managing custom API key presets
+- **Quota**: add usage and rate-limit tracking for Groq via `x-ratelimit-*` headers
+- **i18n**: complete Indonesian translation (1391 keys)
 
 ## Fixes
-- **Bug Hunt**: clone body before translateRequest to prevent combo/fallback bleed (HIGH — stripContentTypes mutates messages in-place)
-- **Bug Hunt**: shallow-clone headers in h2c replay + move deletions before serve() to prevent header mutation race (HIGH)
-- **Bug Hunt**: remove dead code in scoring.js (`const f = conn.failure ? 0 : 0`)
-- **Bug Hunt**: add `id ASC` tiebreaker to requestDetails prune for deterministic deletion
-- **Vercel**: externalize node-forge & @node-saml/node-saml from serverless bundle
-- **Cross-platform**: Supabase adapter uses `os.tmpdir()` instead of hardcoded `/tmp`
-- **Cross-platform**: Login limiter trusts Vercel's `x-forwarded-for`
-- **Manifest**: PWA theme colors match light theme (#f8fafc)
-- **Service Worker**: dynamic cache versioning for proper cleanup on deploy
+- **Security**: close SSRF guard bypasses in `ssrfGuard.js` (alternate IPv6 encodings, hostname trailing dots, wildcard DNS resolution check, safe redirect handling) (#3714)
+- **Model markers**: strip the `[1m]` context marker Claude Code appends to model names (`claude-opus-5[1m]`) preventing model resolution failures (#3690)
+- **Claude**: drop `server_tool_use` blocks carrying foreign IDs to avoid Anthropic 400 rejections; never anchor cache breakpoints on `defer_loading` tools (#3567)
+- **Antigravity**: strike-break optimistic quota readings that keep 429ing by blocking the connection+model pair for 15m after 3 strikes (#3681); preserve client identity on model catalog requests (#3414)
+- **Auth**: protect root `/responses` rewrite requiring API key validation in dashboardGuard
+- **Chat & Docker**: return 503 Service Unavailable when all credentials are rate-limited; explicitly bundle `node-machine-id` into standalone Docker runtime image
+- **OpenCode**: route Muse Spark models to `/zen/v1/responses` and declare vision support; filter inactive free model
+- **Kiro**: preserve inline images as OpenAI-compatible `image_url` parts in OpenAI MITM; remove redundant top-level `systemPrompt` from payload
+- **Usage**: read Responses-shape `cached_tokens` in `extractUsageFromResponse` for non-streaming traffic
+- **Models**: support single model lookup with provider-prefixed IDs (e.g. `cc/claude-sonnet-5`)
+- **Translator**: route Gemini thinking through `reasoning_effort` on OpenAI-compatible wire; convert `prefixItems` and ensure array items in Gemini schema sanitizer
+- **UI**: apply persisted theme before first paint to prevent flash on reload; translate combo vision adapter label
 
-## Performance
-- **Themes page**: React.memo, requestAnimationFrame, useMemo — zero-latency switching
-- **Bundle**: remove 6 heavy unused deps (~15MB lighter): chalk, ora, express, http-proxy-middleware, selfsigned, socks-proxy-agent
-- **Repo**: remove gitbook/ directory (121 files, 34K lines, standalone project not needed at runtime)
+# v0.5.59 (2026-08-29)
 
-## Security
-- All 5 bug hunt findings verified and fixed (see Fixes above)
-- Security audit: no critical/high vulnerabilities found (SQL, IP spoofing, command injection, SSRF, default password all verified safe)
+## Features
+- **Search**: new web search providers — Antigravity (Google Search grounding
+  on the existing OAuth account pool, citations keyed and merged by URL) and
+  Xquik (X search with `x-api-key` auth, cursor pagination, credit-based
+  usage), both on `POST /v1/search`. Based on #3437 by @Nautilaceae
+- **Search**: ollama-search and zai-search borrow a chat provider's API key
+  instead of requiring their own connection, driven by a new
+  `credentialFallback` registry field. zai-search later folded into the `glm`
+  provider itself so the web search page shows the shared connection
+- **Models**: daily background sync of model capabilities from models.dev —
+  modalities keyed by model id (majority of sources must declare one),
+  context/output limits keyed by provider + model, strictly additive and
+  sitting below the hand-written tables. ETag + mtime cache, 60s startup
+  delay, `MODEL_CATALOG_SYNC=off` to disable
+- **Models**: add GLM-5.3-Flash (1M context, natively multimodal), DeepSeek
+  V4 Vision, Grok 4.5/4.6 (500k context); correct glm-4.6v/4.5v video input
+  and output limits, backfill glm-4.6v on glm-cn
+- **Usage**: show the Zed plan quota on the dashboard — plan, edit
+  predictions, hosted model requests and billing-cycle reset; unlimited rows
+  render as "N used · Unlimited"
+- **Usage**: track GPT-5.3-Codex-Spark quota windows (spark_session /
+  spark_weekly) from the Codex usage response (#3431)
+- **Antigravity**: quota-aware routing — on 409/429 fetch live quota for the
+  exact per-model resetAt and skip only the exhausted account/model pair;
+  report the earliest reset when every account is blocked (#3561)
+- **Antigravity**: map image `size` to the aspect-ratio model suffix (-WxH);
+  add the Gemini 3.7 Flash tiers to MITM defaultModels so they show up in
+  the dashboard model-mapping table
+- **Dashboard**: bulk import Grok CLI accounts from JSON — paste an array or
+  drag-drop multiple .json files, all OAuth connections created in a single
+  call, mirroring the codex flow
+- **CLI tools**: endpoint presets shared across every tool card through one
+  live-resyncing store, instead of per-card localStorage copies that never
+  saw each other's saved endpoints
+- **Token Saver**: configurable compression timeout (`headroomTimeoutMs`) —
+  the fixed 3000 ms made busy machines time out and send inconsistently
+  compressed bodies, hurting prompt caching
+- **i18n**: pt-BR expanded to 1132 terms
 
----
+## Fixes
+- **Claude Code**: add Claude Fable 5.1 and advertise Claude Code 2.1.258 in
+  both the request header and billing identity; use its permanent adaptive-thinking
+  mode with `output_config.effort`
+- **Stream**: record usage when a client closes on the terminal event — the
+  Responses API has no [DONE] sentinel, so codex closed the socket on
+  `response.completed` and cancelled the reader before flush() ran its usage
+  side effects; the tail now lives in a once-guarded finalizeStream(). Also
+  stop logging a disconnect for every completed Responses call
+- **Stream**: parse the trailing NDJSON line an Ollama stream leaves behind
+  without a closing newline — the final chunk carrying `done_reason` and the
+  token counts was dropped
+- **Session**: read the Claude Code session id from the
+  `x-claude-code-session-id` header — `metadata.user_id` is dropped by
+  Responses translation, splitting one conversation across several
+  `prompt_cache_key` values and missing the upstream prefix cache
+- **Usage**: preserve nested `cached_tokens` — the top-level-only read
+  persisted `cached_tokens: 0` for every Responses-format provider (codex,
+  grok-cli, …), billing cache hits at the full input rate
+- **Usage**: GLM quotas accept CREDIT_LIMIT plans and multi-interval windows
+  (5h session / 7d weekly) instead of overwriting a single "session" key
+- **Models**: the catalog sync no longer erases its own output — deltas were
+  measured against the previous run's writes (the second run cut `providers`
+  from 20 entries to 5); one vote per provider in the modality tally, ETag
+  restored from file on startup, and the worker thread dropped after the
+  bundler rewrote its path into a module-not-found error
+- **Executor**: CommandCode returns errors as a `type:"error"` event inside
+  an HTTP 200 NDJSON stream — peek the first events before committing, abort
+  and return a real 4xx/5xx so combo/account fallback triggers instead of
+  streaming the error text as content
+- **Search**: scope failure locks on the credential-fallback path — a failing
+  search locked `modelLock___all` and took the shared glm key offline for
+  chat as well; locks are now attributed to the connection's owner and
+  scoped to `websearch:<provider>`
+- **Providers**: connection tests get a 15s AbortSignal timeout instead of
+  hanging and exhausting the browser socket pool; guard undefined provider
+  names on the providers page
+- **Antigravity**: sanitize competing-client branding via a config-driven
+  rule table (Zed's Claude-agent prompt, opencode → antigravity) — upstream
+  answers 429 Quota Exhausted. Applied in the executor so the shared
+  openai-to-gemini translator leaves gemini/vertex/zed untouched
+- **MiniMax**: preserve images on the sourceFormat-matched OpenAI transport
+  — MiniMax-M3 resolved a Claude-shaped body posted to the OpenAI endpoint,
+  silently dropping `image_url` blocks (#3418)
+- **Claude**: decloak tool names in same-format streaming passthrough —
+  OAuth-cloaked names (CLAUDE_TOOL_SUFFIX) leaked to the client and every
+  tool call was rejected as unknown
+- **Tools**: default a missing `tools[].type` to "custom" on Claude-format
+  requests — strict Anthropic-compatible gateways (MiniMax) reject the
+  request with 400 otherwise
+- **Translator**: zai thinkingFormat sends the top-level `reasoning_effort`
+  object GLM-5.2+ requires — every GLM-5.x request ran at the model default
+  (max); gated on GLM-5.2+ since older GLM does not read it (#2721)
+- **RTK**: system prompt injection matches each target wire format
+  (Chat/Responses/Claude/Gemini/Kiro) and is exact-idempotent across retries,
+  so distinct prompts sharing a long prefix are no longer collapsed (#3202).
+  Also set the diagnostic before the silent null return on Responses
+  translation failure so the panel is no longer blank
+- **OpenCode**: route muse-spark through /zen/v1/responses (it 500s on
+  chat/completions), normalizing the Chat fields the Responses API rejects
+  and clamping max/ultra effort to xhigh
+- **CLI**: install better-sqlite3 without build tools on Node 22+ (N-API
+  13.0.3 ships per-platform prebuilds, `--ignore-scripts` skips the implicit
+  node-gyp build); Node < 22 stays on 12.6.2, working installs untouched
+- **CLI tools**: send the API key Codex actually reads —
+  `[model_providers.9router.http_headers]` instead of auth.json (which left
+  every request 401 and clobbered an existing ChatGPT login); subagent model
+  moved to `agents.default_subagent_model`
+- **OAuth**: refresh Cline tokens with the extension JSON contract
+- **Dashboard**: clamp the API key mask length — keys shorter than 8 chars
+  threw RangeError and crashed the media-provider detail page
+- **UI**: wait for the Material Symbols font itself before revealing icons —
+  `document.fonts.ready` resolved before the 4MB woff2 even started loading,
+  leaving icons blank until a second load
 
 # v0.5.55 (2026-08-14)
 

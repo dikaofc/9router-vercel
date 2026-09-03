@@ -4,22 +4,11 @@ import { PROVIDERS } from "../../open-sse/config/providers.js";
 import { resolveTransport } from "../../open-sse/services/provider.js";
 
 // Chat-only models (no /messages, no /responses support on opencode-go)
-const CHAT_ONLY = [
-  "glm-5", "glm-5.1", "glm-5.2", "glm-5.3",
-  "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "kimi-k3",
-  "mimo-v2.5", "mimo-v2.5-pro", "mimo-v2-pro", "mimo-v2-omni",
-  "muse-spark-1.2-contributor",
-];
+const CHAT_ONLY = ["glm-5.2", "glm-5.1", "kimi-k2.7-code", "kimi-k2.6", "mimo-v2.5", "mimo-v2.5-pro"];
 // Models that also expose the Anthropic /messages endpoint
-const CLAUDE_CAPABLE = [
-  "minimax-m3", "minimax-m2.7", "minimax-m2.5",
-  "qwen3.5-plus", "qwen3.6-plus", "qwen3.7-plus", "qwen3.7-max", "qwen3.8-max",
-];
+const CLAUDE_CAPABLE = ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"];
 // Models that also expose the OpenAI /responses endpoint
-const RESPONSES_CAPABLE = [
-  "ox-alpha-free", "hy3", "hy3-preview",
-  "deepseek-v4-flash-free", "deepseek-v4-flash", "deepseek-v4-pro",
-];
+const RESPONSES_CAPABLE = ["deepseek-v4-pro", "deepseek-v4-flash"];
 
 // Mirror of chatCore's per-model transport guard: use the sourceFormat-matched
 // transport only when the model declares support for that sourceFormat.
@@ -33,13 +22,11 @@ describe("OpenCode Go model catalog", () => {
   it("matches the documented model IDs", () => {
     const ids = (PROVIDER_MODELS["opencode-go"] || []).map((m) => m.id);
     expect(ids).toEqual([
-      "ox-alpha-free", "hy3", "hy3-preview", "muse-spark-1.2-contributor",
-      "deepseek-v4-flash-free", "deepseek-v4-flash", "deepseek-v4-pro",
-      "glm-5", "glm-5.1", "glm-5.2", "glm-5.3",
-      "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code", "kimi-k3",
-      "mimo-v2.5", "mimo-v2.5-pro", "mimo-v2-pro", "mimo-v2-omni",
+      "glm-5.3-flash", "glm-5.2", "glm-5.1", "kimi-k2.7-code", "kimi-k2.6",
+      "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp",
+      "mimo-v2.5", "mimo-v2.5-pro",
       "minimax-m3", "minimax-m2.7", "minimax-m2.5",
-      "qwen3.5-plus", "qwen3.6-plus", "qwen3.7-plus", "qwen3.7-max", "qwen3.8-max",
+      "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus",
     ]);
   });
 });
