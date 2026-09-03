@@ -19,7 +19,7 @@
 1. Buka https://glitch.com
 2. Login GitHub
 3. Click **"New Project"** → **"Import from GitHub"**
-4. Pilih repo `9router-vercel`
+4. Pilih repo `9router-patch`
 5. Tunggu install selesai
 6. Klik **"Share"** → **"Live App"**
 

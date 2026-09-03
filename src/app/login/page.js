@@ -165,7 +165,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <Card>
+        <Card glass>
           {mustChange ? (
             <form onSubmit={handleSetNewPassword} className="flex flex-col gap-4">
               <p className="text-sm text-amber-600 dark:text-amber-400 text-center">

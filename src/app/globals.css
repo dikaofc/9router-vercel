@@ -52,6 +52,13 @@
   --color-warning: #F59E0B;
   --color-info: #3B82F6;
 
+  /* Glass / Bento */
+  --glass-bg: rgba(255,255,255,0.72);
+  --glass-border: rgba(255,255,255,0.18);
+  --glass-blur: 16px;
+  --bento-radius: 16px;
+  --bento-gap: 16px;
+
   /* Radius */
   --radius-brand: 10px;
   --radius-brand-lg: 14px;
@@ -105,6 +112,12 @@
   --color-success: #22c55e;
   --color-warning: #fbbf24;
   --color-info: #60a5fa;
+
+  --glass-bg: rgba(38,38,38,0.72);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-blur: 16px;
+  --bento-radius: 16px;
+  --bento-gap: 16px;
 
   --shadow-soft: 0 1px 2px 0 rgba(0,0,0,0.3);
   --shadow-warm: 0 2px 12px -2px rgba(229, 106, 74, 0.25);
@@ -298,6 +311,32 @@ input, textarea {
   box-shadow: var(--shadow-elev);
   border-radius: var(--radius-brand-lg);
 }
+
+/* Glass / Bento — modern glass utilities (ringan, no deps) */
+.glass {
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+.glass-card {
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--bento-radius);
+  box-shadow: var(--shadow-elev);
+}
+.bento-grid {
+  display: grid;
+  gap: var(--bento-gap);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+@keyframes glassIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.glass-in { animation: glassIn 0.25s ease-out both; }
 
 /* Hero gradient (compat) */
 .bg-hero-gradient {

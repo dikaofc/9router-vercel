@@ -301,7 +301,7 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
   const isFusion = current === "fusion";
 
   return (
-    <Card padding="sm" className="group">
+    <Card glass padding="sm" className="group">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
           <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">

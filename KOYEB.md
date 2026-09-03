@@ -21,7 +21,7 @@
 1. Buka https://app.koyeb.com
 2. Login GitHub
 3. **"Create Service"** → **"Git"**
-4. Pilih repo `9router-vercel`
+4. Pilih repo `9router-patch`
 5. Build: `npm install && npm run build`
 6. Start: `node custom-server.js`
 7. Set env vars → Deploy

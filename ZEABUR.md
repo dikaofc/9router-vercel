@@ -19,7 +19,7 @@
 1. Buka https://zeabur.com
 2. Login GitHub
 3. **"New Project"** → **"Deploy from GitHub"**
-4. Pilih repo `9router-vercel`
+4. Pilih repo `9router-patch`
 5. Zeabur auto-detect Node.js → Build & Deploy
 
 **Selesai!**
